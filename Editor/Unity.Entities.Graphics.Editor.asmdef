@@ -1,0 +1,11 @@
+﻿{
+	"name": "Unity.Entities.Graphics.Editor",
+  "references": [
+    "Unity.Entities.Graphics",
+    "Unity.Entities"
+  ],
+  "includePlatforms": [
+      "Editor"
+  ],
+  "excludePlatforms": []
+}
