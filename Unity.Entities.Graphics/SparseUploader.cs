@@ -457,7 +457,6 @@ namespace Unity.Rendering
 
         GraphicsBuffer m_DestinationBuffer;
 
-        BufferPool m_FenceBufferPool;
         BufferPool m_UploadBufferPool;
 
         NativeArray<MappedBuffer> m_MappedBuffers;
@@ -468,13 +467,10 @@ namespace Unity.Rendering
         class FrameData
         {
             public Stack<int> m_Buffers;
-            public int m_FenceBuffer;
-            public AsyncGPUReadbackRequest m_Fence;
 
             public FrameData()
             {
                 m_Buffers = new Stack<int>();
-                m_FenceBuffer = -1;
             }
         }
 
@@ -503,7 +499,6 @@ namespace Unity.Rendering
 
             m_DestinationBuffer = destinationBuffer;
 
-            m_FenceBufferPool = new BufferPool(1, 4, GraphicsBuffer.Target.Raw, GraphicsBuffer.UsageFlags.None);
             m_UploadBufferPool = new BufferPool(m_BufferChunkSize / 4, 4, GraphicsBuffer.Target.Raw, GraphicsBuffer.UsageFlags.LockBufferForWrite);
             m_MappedBuffers = new NativeArray<MappedBuffer>();
             m_FreeFrameData = new Stack<FrameData>();
@@ -533,7 +528,6 @@ namespace Unity.Rendering
         /// </summary>
         public void Dispose()
         {
-            m_FenceBufferPool.Dispose();
             m_UploadBufferPool.Dispose();
             Memory.Unmanaged.Free(m_ThreadData, Allocator.Persistent);
         }
@@ -566,30 +560,62 @@ namespace Unity.Rendering
             m_DestinationBuffer = buffer;
         }
 
+        internal static int NumFramesInFlight
+        {
+            get
+            {
+                // The number of frames in flight at the same time
+                // depends on the Graphics device that we are using.
+                // This number tells how long we need to keep the buffers
+                // for a given frame alive. For example, if this is 4,
+                // we can reclaim the buffers for a frame after 4 frames have passed.
+                int numFrames = 0;
+
+                switch (SystemInfo.graphicsDeviceType)
+                {
+                    case GraphicsDeviceType.Vulkan:
+                    case GraphicsDeviceType.Direct3D11:
+                    case GraphicsDeviceType.Direct3D12:
+                    case GraphicsDeviceType.PlayStation4:
+                    case GraphicsDeviceType.PlayStation5:
+                    case GraphicsDeviceType.XboxOne:
+                    case GraphicsDeviceType.GameCoreXboxOne:
+                    case GraphicsDeviceType.GameCoreXboxSeries:
+                    case GraphicsDeviceType.OpenGLCore:
+                    case GraphicsDeviceType.OpenGLES2:
+                    case GraphicsDeviceType.OpenGLES3:
+                    case GraphicsDeviceType.PlayStation5NGGC:
+                        numFrames = 3;
+                        break;
+                    case GraphicsDeviceType.Switch:
+                    case GraphicsDeviceType.Metal:
+                    default:
+                        numFrames = 4;
+                        break;
+                }
+
+                // Use at least as many frames as the quality settings have, but use a platform
+                // specific lower limit in any case.
+                numFrames = math.max(numFrames, QualitySettings.maxQueuedFrames);
+
+                return numFrames;
+            }
+        }
+
         private void RecoverBuffers()
         {
             var numFree = 0;
-            if (SystemInfo.supportsAsyncGPUReadback)
-            {
-                for (int i = 0; i < m_FrameData.Count; ++i)
-                {
-                    if (m_FrameData[i].m_Fence.done)
-                    {
-                        numFree = i + 1;
-                    }
-                }
-            }
-            else
-            {
-                // Platform does not support async readbacks so we assume 3 frames in flight and once building on CPU
-                // always pop one from the frame data queue
-                if (m_FrameData.Count > 3)
-                    numFree = 1;
-            }
+
+            // Count frames instead of using async readback to determine completion, because
+            // using async readback prevents Unity from letting the device idle, which is really
+            // bad for power usage.
+            // Add 1 to the device frame count to account for two frames overlapping on
+            // CPU side before reaching the GPU.
+            if (m_FrameData.Count > (NumFramesInFlight + 1))
+                numFree = 1;
 
             for (int i = 0; i < numFree; ++i)
             {
-                m_FenceBufferPool.PutBufferId(m_FrameData[i].m_FenceBuffer);
                 while (m_FrameData[i].m_Buffers.Count > 0)
                 {
                     var buffer = m_FrameData[i].m_Buffers.Pop();
@@ -716,13 +742,6 @@ namespace Unity.Rendering
                 }
             }
 
-            if (SystemInfo.supportsAsyncGPUReadback)
-            {
-                var fenceBufferId = m_FenceBufferPool.GetBufferId();
-                frameData.m_FenceBuffer = fenceBufferId;
-                frameData.m_Fence = AsyncGPUReadback.Request(m_FenceBufferPool.GetBufferFromId(fenceBufferId));
-            }
-
             m_FrameData.Add(frameData);
 
             m_MappedBuffers.Dispose();
@@ -770,8 +789,7 @@ namespace Unity.Rendering
             var stats = default(SparseUploaderStats);
 
             var totalUploadMemory = m_UploadBufferPool.TotalBufferSize;
-            var totalFenceMemory = m_FenceBufferPool.TotalBufferSize;
-            stats.BytesGPUMemoryUsed = totalUploadMemory + totalFenceMemory;
+            stats.BytesGPUMemoryUsed = totalUploadMemory;
             stats.BytesGPUMemoryUploadedCurr = m_CurrentFrameUploadSize;
             stats.BytesGPUMemoryUploadedMax = m_MaxUploadSize;
 

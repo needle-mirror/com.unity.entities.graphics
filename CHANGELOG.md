@@ -3,6 +3,23 @@ uid: changelog
 ---
 # Changelog
 
+## [1.0.0-exp.14] - 2022-10-19
+
+
+### Changed
+
+* Updated documentation for mesh deformations.
+* Removed async readback from deformations and replaced with fixed number of frames.
+
+
+### Fixed
+
+* Fixed a bug in the BatchingBenchmark sample scene where it would only spawn entities the first time it was dynamically loaded.
+* Fixed an issue where Entities Graphics would cause issues with the device being able to idle.
+
+
+
+
 ## [1.0.0-exp.8] - 2022-09-21
 
 ### Added

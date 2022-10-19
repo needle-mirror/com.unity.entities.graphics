@@ -1,72 +1,82 @@
 ## Mesh deformations
-This page describes how to deform meshes using skinning and blendshapes, similar to what the [SkinnedMeshRenderer](https://docs.unity3d.com/Manual/class-SkinnedMeshRenderer.html) does. Generally, you want to use this in combination with DOTS Animation. For samples of setups and usage of the systems, see [DOTS Animation Samples](https://github.com/Unity-Technologies/Unity.Animation.Samples/blob/master/README.md). 
+This page describes how to use skinning and blendshapes to deform meshes. This is similar to what the [Skinned Mesh Renderer](https://docs.unity3d.com/Manual/class-SkinnedMeshRenderer.html) component does. 
 
+To use mesh deformations in your Unity Project, you first need to set up your project to support them. Then, to control deformations, write to either the [Skin Matrix](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Deformations.SkinMatrix.html) or [Blend Shape](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Deformations.BlendShapeWeight.html) ECS component. For examples on how to do this, refer to the [MeshDeformations](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridURPSamples/Assets/SampleScenes/MeshDeformations) and [Skinned Character](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridURPSamples/Assets/SampleScenes/SkinnedCharacter) scenes in [HybrdidURPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridURPSamples) and [HybridHDRPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridHDRPSamples).
 
 ## Disclaimer
-This version is highly experimental. This means that it is not yet ready for production use and parts of the implementation will change.
+This version of mesh deformations is experimental. This means that it isn't yet ready to use for production and parts of the implementation and API will change. Also, this version doesn't support some features that exist for the Skinned Mesh Renderer component.
+
 ## Setup
 
-To use mesh deformations in your Unity Project, you need to correctly set up:
+To use mesh deformations in your Unity Project:
 
-- Your [Unity Project](#project-setup)
-- A [material to use with the deformed mesh](#material-setup)
-- A [mesh to apply the material to](#mesh-setup).
+1. Enable support for mesh deformations in your [Unity Project](#project-setup).
+2. Create a [material to use with the deformed mesh](#material-setup).
+3. Create a [mesh to apply the material to](#mesh-setup).
 
 ### Project setup
 
-Follow these steps to set your Unity Project up to support mesh deformation.
+Before you can use mesh deformations in your Unity project, you must set up your Unity Project to support this feature. To do this:
 
-1. Make sure your Unity Project uses [Scriptable Render Pipeline](https://docs.unity3d.com/Manual/ScriptableRenderPipeline.html) (SRP) version 7.x or higher.
-2. Make sure your Unity Project uses Entities Graphics
-3. If you intend to use Compute Deformation (required for blendshapes), go to Project Settings (menu: **Edit > Project Settings**) and, in the Player section, add the `ENABLE_COMPUTE_DEFORMATIONS` define to **Scripting Define Symbols**.
+1. Make sure your Unity Project uses the Entities Graphics package. For information on how to install packages, see the [Package Manager manual](https://docs.unity3d.com/Manual/upm-ui.html).
+2. If you intend to use per-vertex motion vectors, go to Project Settings (menu: **Edit** > **Project Settings**) and, in the Player section, add `ENABLE_DOTS_DEFORMATION_MOTION_VECTORS` to **Scripting Define Symbols**. Unity currently only supports this when using the High Definition Render Pipeline. **Note**: To apply changes to the define, you must re-save any Shader Graphs.
+3. Create a Skinned Mesh Renderer with compatible materials using the [Mesh setup](#mesh-setup) and [Material setup](#material-setup) steps.
+
+When Unity [converts](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/manual/conversion.html) a GameObject or Prefab that contains a Skinned Mesh Renderer component into an entity, it adds the correct deformation ECS components. Furthermore, the deformation systems dispatch and apply the deformations to the mesh.
+
+> [!NOTE]
+> To create motion, write to the SkinMatrix and BlendShapeWeights ECS components.
 
 ### Material setup
 
-Follow these steps to create a material that Entities Graphics can use to render mesh deformations:
+After you set up your project to support mesh deformations, you can create a material that Entities Graphics can use to render mesh deformations. To do this:
 
-1. Create a Shader Graph and open it. You can use any Shader Graph from the High Definition Render Pipeline (HDRP) or the Universal Render Pipeline (URP).
-2. Add either the [Compute Deformation](https://docs.unity3d.com/Packages/com.unity.shadergraph@latest?subfolder=/manual/Compute-Deformation-Node.html) or [Linear Blend Skinning](https://docs.unity3d.com/Packages/com.unity.shadergraph@latest?subfolder=/manual/Linear-Blend-Skinning-Node.html) node to the Shader Graph.
-3. Connect the position, normal, and tangent outputs of the node to the vertex position, normal, and tangent slots in the master node respectively. Save the Shader Graph.
-
-1. Create a material that uses the new Shader Graph. To do this, right-click on the Shader Graph asset and click **Create > Material**.
-2. If you already have a mesh set up, assign the material to all material slots on the SkinnedMeshRenderer. If not, see [Mesh setup](#mesh-setup).
-3. Now Entities Graphics is able to fetch the result of the deformation when the Entity renders. However, for the mesh to actually deform, you must set it up correctly. For information on how to do this, see [Mesh setup](#mesh-setup).
+1. Create a new Shader Graph and open it. You can use any Shader Graph from the High Definition Render Pipeline (HDRP) or the Universal Render Pipeline (URP).
+2. Add the [Compute Deformation](https://docs.unity3d.com/Packages/com.unity.shadergraph@latest?subfolder=/manual/Compute-Deformation-Node.html) node to the Shader Graph.
+3. Connect the position, normal, and tangent outputs of the node to the vertex position, normal, and tangent slots in the master node respectively.
+4. Save the Shader Graph.
 
 ### Mesh setup
 
-Follow these steps to set up a mesh that Entities Graphics can animate using mesh deformation:
+After you create a material that supports mesh deformations, you can set up a mesh that Entities Graphics can deform using your material. To do this:
 
-1. Make sure your GameObject or Prefab is suitable for mesh deformations. This means it uses the SkinnedMeshRenderer component and not the MeshRenderer component. Furthermore, the mesh you assign to a SkinnedMeshRenderer needs to have blendshapes and/or a valid bind pose and skin weights. If it does not, an error appears in the SkinnedMeshRenderer component Inspector.
-2. Assign the material you created in [Material setup](#material-setup) to all material slots on the SkinnedMeshRenderer(s).
-3. When Unity converts the GameObject or Prefab into an entity, it adds the correct deformation components. Furthermore, the deformation systems dispatch and apply the deformations to the mesh. Note that to create motion you should either use Dots Animation or write to the SkinMatrix and BlendShapeWeights components directly.
+1. Select a GameObject or Prefab and make sure it uses the Skinned Mesh Renderer component, and not the Mesh Renderer component.
+2. Make sure that the mesh has blendshapes and/or a valid bind pose and skin weights. If Unity doesn't detect the appropriate data, it displays an error in the Skinned Mesh Renderer component Inspector.
+3. Assign the material you created in [Material setup](#material-setup) to all material slots on the Skinned Mesh Renderer.
+
 
 ### Vertex shader skinning
-Skins the mesh on the GPU in the vertex shader. 
-#### Features
-- Linear blend skinning with four influences per vertex.
-- Does not support blendshapes.
-#### Requirements
-- Unity 2019.3b11 or newer (recommended)
-- Entities Graphics 0.5.0 or higher (recommended)
-- SRP version 7.x.x or higher (recommended)
 
+> [!IMPORTANT]
+> Mesh deformations are compute shader based by default when using graphics entities. Vertex shader deformation workflows are not encouraged and will not be supported in the future.
 
-### Compute shader deformation
-Applies mesh deformations on the GPU using compute shaders. 
-#### Features
-- Linear blend skinning, supports up to 255 sparse influences per vertex 
-- Supports sparse blendshapes
-#### Requirements
-- Add the `ENABLE_COMPUTE_DEFORMATIONS` define to **Scripting Define Symbols** in your Project Settings (menu: **Edit > Project Settings > Player**)
-- Unity 2020.1.0b6 or higher (recommended)
-- Entities Graphics 0.5.0 or higher (recommended)
-- SRP version 9.x.x or higher (recommended)
+Vertex shader skinning skins the mesh on the GPU in the vertex shader. To enable this, use the Linear Blend Skinning node instead of the Compute Node. Linear blend skinning only supports dense 4 bones per vertex and is not compatible with blend shapes or motion vectors.
+
+> [!NOTE]
+> When you use vertex shader skinning,  compute deformation still run in the background.
+
 
 ## Known limitations
-- Wire frame mode and other debug modes do not display mesh deformations.
+
+- Not compatible with [Scene View Draw Modes](https://docs.unity3d.com/Manual/ViewModes.html), use Rendering Debugger for [Universal](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@latest?subfolder=/manual/features/rendering-debugger.html) and [High Definition](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@latest?subfolder=/manual/Render-Pipeline-Debug-Window.html) Render Pipelines respectively. 
+- Some Shader Graph operations are not supported, for instance using a sub graph.
 - Render bounds are not resized or transformed based on the mesh deformations.
-- No frustum or occlusion culling, Unity processes mesh deformation for everything that uses it in the scene.
-- Visual glitches may appear on the first frame.
-- Live link is still untested with many of the features.
+- No frustum or occlusion culling, Unity processes mesh deformation for everything that uses it in the scene and its sub scenes.
 - Deformed meshes can disappear or show in their bind pose when Unity renders them as GameObjects.
 - Compute deformation performance varies based on GPU.
+- Not compatible with VFX Graph.
+
+## Feature comparison
+
+|                                        		    | **Skinned Mesh Renderer** | **Entities Graphics** |
+| ------------------------------------------------- | --------------------------| ----------------------|
+| Linear Blend Skinning 							| Supported 				| Supported |
+| Blend Shapes 										| Supported 				| Supported |
+| Per Vertex Motion Vectors 						| [Supported](https://docs.unity3d.com/ScriptReference/SkinnedMeshRenderer-skinnedMotionVectors.html) | Only in HDRP (With define) |
+| Optional normals & tangents 						| Supported 				| --- |
+| Resizeable render bounds based on animated pose 	| [Supported](https://docs.unity3d.com/ScriptReference/SkinnedMeshRenderer-updateWhenOffscreen.html) | --- |
+| Bake Mesh 										| [Supported](https://docs.unity3d.com/ScriptReference/SkinnedMeshRenderer.BakeMesh.html) | --- |
+| Cloth Simulation 									| Supported 				| --- |
+| Quality setting for limiting skin influences 		| Supported 				| --- |
+| CPU Deformations 									| [Supported](https://docs.unity3d.com/ScriptReference/PlayerSettings-gpuSkinning.html) | --- |
+| Blend Shape Frames 								| Supported 				| --- |
