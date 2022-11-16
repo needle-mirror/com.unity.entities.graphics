@@ -106,7 +106,7 @@ namespace Unity.Rendering
 
                     var skipComponent = (isWorldToLocal || isPrevWorldToLocal);
 
-                    bool componentChanged = chunk.DidChange(type, LastSystemVersion);
+                    bool componentChanged = chunk.DidChange(ref type, LastSystemVersion);
                     bool copyComponentData = (isNewChunk || structuralChanges || componentChanged) && !skipComponent;
 
                     if (copyComponentData)
@@ -115,7 +115,7 @@ namespace Unity.Rendering
                         Debug.Log($"UpdateChunkProperty(internalBatchIndex: {chunkInfo.BatchIndex}, property: {i}, elementSize: {chunkProperty.ValueSizeBytesCPU})");
 #endif
 
-                        var src = chunk.GetDynamicComponentDataArrayReinterpret<int>(type,
+                        var src = chunk.GetDynamicComponentDataArrayReinterpret<int>(ref type,
                             chunkProperty.ValueSizeBytesCPU);
 
 #if PROFILE_BURST_JOB_INTERNALS
@@ -234,8 +234,8 @@ namespace Unity.Rendering
             // This job is not written to support queries with enableable component types.
             Assert.IsFalse(useEnabledMask);
 
-            var chunkHeaders = metaChunk.GetNativeArray(ChunkHeader);
-            var entitiesGraphicsChunkInfos = metaChunk.GetNativeArray(EntitiesGraphicsChunkInfo);
+            var chunkHeaders = metaChunk.GetNativeArray(ref ChunkHeader);
+            var entitiesGraphicsChunkInfos = metaChunk.GetNativeArray(ref EntitiesGraphicsChunkInfo);
 
             for (int i = 0, chunkEntityCount = metaChunk.Count; i < chunkEntityCount; i++)
             {
@@ -284,9 +284,9 @@ namespace Unity.Rendering
 
             // metaChunk is the chunk which contains the meta entities (= entities holding the chunk components) for the actual chunks
 
-            var entitiesGraphicsChunkInfos = metaChunk.GetNativeArray(EntitiesGraphicsChunkInfo);
-            var chunkHeaders = metaChunk.GetNativeArray(ChunkHeader);
-            var chunkBoundsArray = metaChunk.GetNativeArray(ChunkWorldRenderBounds);
+            var entitiesGraphicsChunkInfos = metaChunk.GetNativeArray(ref EntitiesGraphicsChunkInfo);
+            var chunkHeaders = metaChunk.GetNativeArray(ref ChunkHeader);
+            var chunkBoundsArray = metaChunk.GetNativeArray(ref ChunkWorldRenderBounds);
 
             for (int i = 0, chunkEntityCount = metaChunk.Count; i < chunkEntityCount; i++)
             {
@@ -298,21 +298,21 @@ namespace Unity.Rendering
                 // other required components. This should normally not happen, but can happen
                 // if the user manually deletes some components after the fact.
                 bool hasRenderMeshArray = chunk.Has(RenderMeshArray);
-                bool hasMaterialMeshInfo = chunk.Has(MaterialMeshInfo);
-                bool hasLocalToWorld = chunk.Has(LocalToWorld);
+                bool hasMaterialMeshInfo = chunk.Has(ref MaterialMeshInfo);
+                bool hasLocalToWorld = chunk.Has(ref LocalToWorld);
 
                 if (!math.all(new bool3(hasRenderMeshArray, hasMaterialMeshInfo, hasLocalToWorld)))
                     continue;
 
                 ChunkWorldRenderBounds chunkBounds = chunkBoundsArray[i];
 
-                bool localToWorldChange = chunkHeader.ArchetypeChunk.DidChange(LocalToWorld, EntitiesGraphicsChunkUpdater.LastSystemVersion);
+                bool localToWorldChange = chunkHeader.ArchetypeChunk.DidChange(ref LocalToWorld, EntitiesGraphicsChunkUpdater.LastSystemVersion);
 
                 // When LOD ranges change, we must reset the movement grace to avoid using stale data
                 bool lodRangeChange =
                     chunkHeader.ArchetypeChunk.DidOrderChange(EntitiesGraphicsChunkUpdater.LastSystemVersion) |
-                    chunkHeader.ArchetypeChunk.DidChange(LodRange, EntitiesGraphicsChunkUpdater.LastSystemVersion) |
-                    chunkHeader.ArchetypeChunk.DidChange(RootLodRange, EntitiesGraphicsChunkUpdater.LastSystemVersion);
+                    chunkHeader.ArchetypeChunk.DidChange(ref LodRange, EntitiesGraphicsChunkUpdater.LastSystemVersion) |
+                    chunkHeader.ArchetypeChunk.DidChange(ref RootLodRange, EntitiesGraphicsChunkUpdater.LastSystemVersion);
 
                 if (lodRangeChange)
                 {
@@ -337,9 +337,9 @@ namespace Unity.Rendering
         public void Execute(int index)
         {
             var chunk = NewChunks[index];
-            var chunkInfo = chunk.GetChunkComponentData(EntitiesGraphicsChunkInfo);
+            var chunkInfo = chunk.GetChunkComponentData(ref EntitiesGraphicsChunkInfo);
 
-            ChunkWorldRenderBounds chunkBounds = chunk.GetChunkComponentData(ChunkWorldRenderBounds);
+            ChunkWorldRenderBounds chunkBounds = chunk.GetChunkComponentData(ref ChunkWorldRenderBounds);
 
             Debug.Assert(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
             EntitiesGraphicsChunkUpdater.ProcessValidChunk(chunkInfo, chunk, chunkBounds.Value, true);

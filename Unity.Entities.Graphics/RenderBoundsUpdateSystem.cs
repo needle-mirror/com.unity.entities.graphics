@@ -9,7 +9,6 @@ using Unity.Transforms;
 
 namespace Unity.Rendering
 {
-    
     /// <summary>
     /// A system that generates a scene bounding volume for each section at conversion time.
     /// </summary>
@@ -144,9 +143,9 @@ namespace Unity.Rendering
                 // This job is not written to support queries with enableable component types.
                 Assert.IsFalse(useEnabledMask);
 
-                var worldBounds = chunk.GetNativeArray(WorldRenderBounds);
-                var localBounds = chunk.GetNativeArray(RendererBounds);
-                var localToWorld = chunk.GetNativeArray(LocalToWorld);
+                var worldBounds = chunk.GetNativeArray(ref WorldRenderBounds);
+                var localBounds = chunk.GetNativeArray(ref RendererBounds);
+                var localToWorld = chunk.GetNativeArray(ref LocalToWorld);
                 MinMaxAABB combined = MinMaxAABB.Empty;
                 for (int i = 0; i != localBounds.Length; i++)
                 {
@@ -156,13 +155,19 @@ namespace Unity.Rendering
                     combined.Encapsulate(transformed);
                 }
 
-                chunk.SetChunkComponentData(ChunkWorldRenderBounds, new ChunkWorldRenderBounds { Value = combined });
+                chunk.SetChunkComponentData(ref ChunkWorldRenderBounds, new ChunkWorldRenderBounds { Value = combined });
             }
         }
 
         /// <inheritdoc/>
         protected override void OnCreate()
         {
+            if (!EntitiesGraphicsSystem.EntitiesGraphicsEnabled)
+            {
+                Enabled = false;
+                return;
+            }
+
             m_WorldRenderBounds = GetEntityQuery
                 (
                 new EntityQueryDesc
@@ -177,9 +182,6 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnUpdate()
         {
-            if (!EntitiesGraphicsSystem.EntitiesGraphicsEnabled)
-                return;
-
             var boundsJob = new BoundsJob
             {
                 RendererBounds = GetComponentTypeHandle<RenderBounds>(true),

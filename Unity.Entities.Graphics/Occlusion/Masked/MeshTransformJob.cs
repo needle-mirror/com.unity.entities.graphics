@@ -12,8 +12,8 @@ using UnityEngine.Rendering;
 
 namespace Unity.Rendering.Occlusion.Masked
 {
-    [BurstCompile]
-    public unsafe struct MeshTransformJob: IJobFor
+    [BurstCompile(DisableSafetyChecks = true)]
+    unsafe struct MeshTransformJob : IJobFor
     {
         [ReadOnly] public float4x4 ViewProjection;
         [ReadOnly] public BatchCullingProjectionType ProjectionType;
@@ -24,8 +24,17 @@ namespace Unity.Rendering.Occlusion.Masked
         [ReadOnly] public v128 PixelCenterX;
         [ReadOnly] public v128 PixelCenterY;
         [ReadOnly] public NativeArray<LocalToWorld> LocalToWorlds;
+        [ReadOnly] public NativeArray<OcclusionMesh> Meshes;
+
+        public NativeArray<float4> TransformedVerts;
+        public int TransformedVertsStride;
+        public NativeArray<float3> ClippedVerts;
+        public NativeArray<float4> ClippedTriExtents;
+        public NativeArray<ClippedOccluder> ClippedOccluders;
+
+        [NativeSetThreadIndex]
+        internal int m_ThreadIndex;
         
-        public NativeArray<OcclusionMesh> Meshes;
         public void Execute(int i)
         {
             var mesh = Meshes[i];
@@ -38,9 +47,13 @@ namespace Unity.Rendering.Occlusion.Masked
                 new float4(mesh.localTransform.c3, 1f)
             );
             float4x4 mvp = math.mul(ViewProjection, math.mul(LocalToWorlds[i].Value, occluderMtx));
-            mesh.Transform(mvp, ProjectionType, NearClip, FrustumPlanes, HalfWidth.Float0, HalfHeight.Float0, PixelCenterX.Float0, PixelCenterY.Float0);
 
-            Meshes[i] = mesh;
+            var clipped = (ClippedOccluder*)ClippedOccluders.GetUnsafePtr();
+            
+            float4* transformedVertsPtr = &((float4*)TransformedVerts.GetUnsafePtr())[m_ThreadIndex * TransformedVertsStride];
+            
+            mesh.Transform(mvp, ProjectionType, NearClip, FrustumPlanes, HalfWidth.Float0, HalfHeight.Float0,
+                PixelCenterX.Float0, PixelCenterY.Float0, transformedVertsPtr, ClippedVerts, ClippedTriExtents, &clipped[i]);
         }
     }
 }

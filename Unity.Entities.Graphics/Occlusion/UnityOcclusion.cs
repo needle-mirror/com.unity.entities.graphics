@@ -9,6 +9,8 @@ using Unity.Transforms;
 using UnityEngine.Rendering;
 using System.Collections.Generic;
 using Unity.Burst.Intrinsics;
+using Unity.Jobs.LowLevel.Unsafe;
+using Unity.Mathematics;
 using Unity.Profiling;
 using Unity.Rendering.Occlusion.Masked;
 using Unity.Rendering.Occlusion.Masked.Dots;
@@ -16,7 +18,7 @@ using Unity.Rendering.Occlusion.Masked.Visualization;
 
 namespace Unity.Rendering.Occlusion
 {
-    public unsafe class OcclusionCulling
+    unsafe class OcclusionCulling
     {
         public bool IsEnabled = true;
         public DebugSettings debugSettings = new DebugSettings();
@@ -33,6 +35,8 @@ namespace Unity.Rendering.Occlusion
         static readonly ProfilerMarker s_ComputeBounds = new ProfilerMarker("Occlusion.Cull.ComputeBounds");
         static readonly ProfilerMarker s_Rasterize = new ProfilerMarker("Occlusion.Cull.Rasterize");
         static readonly ProfilerMarker s_Test = new ProfilerMarker("Occlusion.Cull.Test");
+        static readonly ProfilerMarker s_AllocClippingBuffers = new ProfilerMarker("Occlusion.Cull.AllocClippingBuffers");
+        static readonly ProfilerMarker s_DisposeClippingBuffers = new ProfilerMarker("Occlusion.Cull.DisposeClippingBuffers");
 
         public void Create(EntityManager entityManager)
         {
@@ -109,6 +113,30 @@ namespace Unity.Rendering.Occlusion
             var localToWorlds = m_OcclusionMeshQuery.ToComponentDataArray<LocalToWorld>(Allocator.TempJob);
             var meshes = m_OcclusionMeshQuery.ToComponentDataArray<OcclusionMesh>(Allocator.TempJob);
 
+            // Allocate buffers that will hold the clipped occluder mesh data
+            s_AllocClippingBuffers.Begin();
+
+            var clippedOccluders = new NativeArray<ClippedOccluder>(meshes.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            int maxVertsInMesh = 0;
+            int numTotalIndices = 0;
+
+            var clippedOccludersPtr = (ClippedOccluder*)clippedOccluders.GetUnsafePtr();
+            for (int i = 0; i < meshes.Length; i++)
+            {
+                maxVertsInMesh = math.max(maxVertsInMesh, meshes[i].vertexCount);
+
+                clippedOccludersPtr[i].sourceIndexOffset = numTotalIndices;
+                numTotalIndices += meshes[i].indexCount;
+            }
+
+            var transformedVerts = new NativeArray<float4>(maxVertsInMesh * JobsUtility.MaxJobThreadCount, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            // Multiply index count by 6 because that's the most amount of points that can be generated during clipping
+            var clippedVerts = new NativeArray<float3>(6 * numTotalIndices, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            // Triangle min max contains the screen space aabb of the triangles to not recompute it for each bin in the
+            // rasterize job. Used to classify triangles by bins.
+            var clippedTriExtents = new NativeArray<float4>(numTotalIndices * 2, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            s_AllocClippingBuffers.End();
+
             /* Transform occluder meshes
                ------------------------- */
             s_MeshTransform.Begin();
@@ -124,11 +152,17 @@ namespace Unity.Rendering.Occlusion
                 PixelCenterY = bufferGroup.PixelCenterY,
                 LocalToWorlds = localToWorlds,
                 Meshes = meshes,
+                TransformedVerts = transformedVerts,
+                TransformedVertsStride = maxVertsInMesh,
+                ClippedVerts = clippedVerts,
+                ClippedTriExtents = clippedTriExtents,
+                ClippedOccluders = clippedOccluders
             }.ScheduleParallel(meshes.Length, 4, incomingJob);
 #if WAIT_FOR_EACH_JOB
             transformJob.Complete();
 #endif // WAIT_FOR_EACH_JOB
             localToWorlds.Dispose(transformJob);
+            meshes.Dispose(transformJob);
             s_MeshTransform.End();
 
             /* Sort meshes by vertex count
@@ -138,7 +172,7 @@ namespace Unity.Rendering.Occlusion
             s_SortMeshes.Begin();
             var sortJob = new OcclusionSortMeshesJob
             {
-                Meshes = meshes,
+                ClippedOccluders = clippedOccluders,
             }.Schedule(transformJob);
 #if WAIT_FOR_EACH_JOB
             sortJob.Complete();
@@ -166,7 +200,7 @@ namespace Unity.Rendering.Occlusion
             /* Rasterize
                --------- */
             JobHandle rasterizeJob;
-            if (meshes.Length > 0)
+            if (clippedOccluders.Length > 0)
             {
                 s_Rasterize.Begin();
                 const int TilesPerBinX = 2;//16 tiles per X axis, values can be 1 2 4 8 16
@@ -175,7 +209,9 @@ namespace Unity.Rendering.Occlusion
                 int numBins = bufferGroup.NumTilesX * bufferGroup.NumTilesY / TilesPerBin;
                 rasterizeJob = new RasterizeJob
                 {
-                    Meshes = meshes,
+                    ClippedOccluders = clippedOccluders,
+                    ClippedVerts = clippedVerts,
+                    ClippedTriExtents = clippedTriExtents,
                     ProjectionType = bufferGroup.ProjectionType,
                     NumBuffers = bufferGroup.NumBuffers,
                     HalfWidth = bufferGroup.HalfWidth,
@@ -232,10 +268,21 @@ namespace Unity.Rendering.Occlusion
             testJob.Complete();
 #endif // WAIT_FOR_EACH_JOB
             s_Test.End();
+
+            s_DisposeClippingBuffers.Begin();
+
+            transformedVerts.Dispose(rasterizeJob);
+            clippedVerts.Dispose(rasterizeJob);
+            clippedOccluders.Dispose(rasterizeJob);
+            clippedTriExtents.Dispose(rasterizeJob);
+
+            s_DisposeClippingBuffers.End();
+
+
             s_Cull.End();
 
             bufferGroup.RenderToTextures(m_ReadonlyTestQuery, m_ReadonlyMeshQuery, testJob, debugSettings.debugRenderMode);
-            meshes.Dispose(rasterizeJob);
+
             return testJob;
         }
 
@@ -271,11 +318,16 @@ namespace Unity.Rendering.Occlusion
                 ulong viewID = (uint)instanceID | ((ulong)i << 32);
 
                 // Add a buffer-group for the current view if one doesn't already exist
-                if (!BufferGroups.TryGetValue(viewID, out var bufferGroup))
+                bool initializeView = !BufferGroups.TryGetValue(viewID, out var bufferGroup);
+                if (initializeView)
                 {
                     bufferGroup = new BufferGroup(cullingContext.viewType);
                     BufferGroups[viewID] = bufferGroup;
                     debugSettings.RefreshViews(BufferGroups);
+
+#if UNITY_EDITOR
+                    OcclusionBrowseWindow.Refresh();
+#endif
                 }
 
                 if (pinnedViewID.HasValue && BufferGroups.TryGetValue(pinnedViewID.Value, out var pinnedBufferGroup))
@@ -289,12 +341,17 @@ namespace Unity.Rendering.Occlusion
                 {
                     // Update the buffer-group's view-related parameters
                     s_SetResolution.Begin();
-                    bufferGroup.SetResolutionAndClip(
-                        m_MOCDepthSize,
-                        m_MOCDepthSize,
-                        cullingContext.projectionType,
-                        cullingContext.cullingSplits[i].nearPlane
-                    );
+
+                    if (initializeView)
+                    {
+	                    bufferGroup.SetResolutionAndClip(
+	                        m_MOCDepthSize,
+	                        m_MOCDepthSize,
+	                        cullingContext.projectionType,
+	                        cullingContext.cullingSplits[i].nearPlane
+	                    );
+
+                    }
                     bufferGroup.CullingMatrix = cullingContext.cullingSplits[i].cullingMatrix;
                     s_SetResolution.End();
                 }
@@ -317,6 +374,53 @@ namespace Unity.Rendering.Occlusion
             }
 
             return combinedHandle;
+        }
+
+        internal void UpdateSettings(OcclusionView occlusionView)
+        {
+            var id = occlusionView.gameObject.GetInstanceID();
+
+            var light = occlusionView.GetComponent<UnityEngine.Light>();
+            var camera = occlusionView.GetComponent<UnityEngine.Camera>();
+            if (light != null)
+            {
+                id = light.GetInstanceID();
+            }
+            if (camera != null)
+            {
+                id = camera.GetInstanceID();
+            }
+
+            var settings = new OcclusionViewSettings
+            {
+                enabled = occlusionView.OcclusionEnabled,
+                width = occlusionView.OcclusionBufferWidth,
+                height = occlusionView.OcclusionBufferHeight
+            };
+
+            for (int i = 0; i < 4; i++)
+            {
+                ulong viewID = (uint)id | ((ulong)i << 32);
+
+                // Update buffer groups
+                if (!BufferGroups.TryGetValue(viewID, out var bufferGroup))
+                {
+                    break;
+                }
+
+                if (!occlusionView.OcclusionEnabled)
+                {
+                    BufferGroups.Remove(viewID);
+                }
+                else
+                {
+                    bufferGroup.SetResolutionAndClip(
+                        (int)occlusionView.OcclusionBufferWidth,
+                        (int)occlusionView.OcclusionBufferHeight,
+                        bufferGroup.ProjectionType,
+                        bufferGroup.NearClip);
+                }
+            }
         }
 
         private EntityQuery m_OcclusionTestTransformGroup;

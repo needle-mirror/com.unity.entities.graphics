@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Unity.Rendering
 {
@@ -59,7 +60,7 @@ namespace Unity.Rendering
             ComponentType[] typesToFilter = new[]
             {
 #if !ENABLE_TRANSFORM_V1
-                ComponentType.ReadOnly<PostTransformMatrix>(),
+                ComponentType.ReadOnly<PostTransformScale>(),
 #else
                 ComponentType.ReadOnly<Translation>(),
                 ComponentType.ReadOnly<Rotation>(),
@@ -111,7 +112,11 @@ namespace Unity.Rendering
                 Entities.ForEach((in MeshRendererBakingData authoring) =>
                 {
                     context.CollectLightMapUsage(authoring.MeshRenderer);
-                }).WithoutBurst().WithStructuralChanges().Run();
+                })
+                .WithEntityQueryOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
+                .WithoutBurst()
+                .WithStructuralChanges()
+                .Run();
             }
 
             context.ProcessLightMapsForConversion();
@@ -133,7 +138,11 @@ namespace Unity.Rendering
                     ecb.SetSharedComponentManaged(entity, renderMesh);
                 }
 
-            }).WithEntityQueryOptions(EntityQueryOptions.IncludeDisabledEntities).WithoutBurst().WithStructuralChanges().Run();
+            })
+            .WithEntityQueryOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
+            .WithoutBurst()
+            .WithStructuralChanges()
+            .Run();
 
             context.EndConversion();
 
@@ -152,38 +161,20 @@ namespace Unity.Rendering
     [UpdateAfter(typeof(MeshRendererBaking))]
     partial class RenderMeshPostProcessSystem : SystemBase
     {
-        Material m_ErrorMaterial;
-
         EntityQuery m_BakedEntities;
         EntityQuery m_RenderMeshEntities;
 
         /// <inheritdoc/>
         protected override void OnCreate()
         {
-            if (m_ErrorMaterial == null)
-            {
-                m_ErrorMaterial = EntitiesGraphicsUtils.LoadErrorMaterial();
-            }
-
-            m_BakedEntities = EntityManager.CreateEntityQuery(new EntityQueryDesc
-            {
-                Any = new []
-                {
-                    ComponentType.ReadOnly<MeshRendererBakingData>(),
-                    ComponentType.ReadOnly<SkinnedMeshRendererBakingData>(),
-                },
-                Options = EntityQueryOptions.IncludePrefab
-            });
-
-            m_RenderMeshEntities = EntityManager.CreateEntityQuery(new EntityQueryDesc
-                {
-                    All = new []
-                    {
-                        ComponentType.ReadWrite<RenderMesh>(),
-                        ComponentType.ReadWrite<MaterialMeshInfo>(),
-                    },
-                    Options = EntityQueryOptions.IncludePrefab
-                });
+            m_BakedEntities = new EntityQueryBuilder(Allocator.Temp)
+                .WithAny<MeshRendererBakingData, SkinnedMeshRendererBakingData>()
+                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
+                .Build(this);
+            m_RenderMeshEntities = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<RenderMesh, MaterialMeshInfo>()
+                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
+                .Build(this);
 
             RequireForUpdate(m_BakedEntities);
         }
@@ -205,8 +196,8 @@ namespace Unity.Rendering
                 if (renderMesh.mesh != null)
                     meshes[renderMesh.mesh] = true;
 
-                var material = renderMesh.material ?? m_ErrorMaterial;
-                materials[material] = true;
+                if (renderMesh.material != null)
+                    materials[renderMesh.material] = true;
             }
 
             if (meshes.Count == 0 && materials.Count == 0)
@@ -225,27 +216,47 @@ namespace Unity.Rendering
                 var e = entities[i];
 
                 var renderMesh = EntityManager.GetSharedComponentManaged<RenderMesh>(e);
-                var material = renderMesh.material ?? m_ErrorMaterial;
 
-                if (!materialToIndex.TryGetValue(material, out var materialIndex))
-                {
-                    Debug.LogWarning($"Material {material} not found from RenderMeshArray");
-                    materialIndex = 0;
-                }
-
-                if (!meshToIndex.TryGetValue(renderMesh.mesh, out var meshIndex))
-                {
-                    Debug.LogWarning($"Mesh {renderMesh.mesh} not found from RenderMeshArray");
-                    meshIndex = 0;
-                }
-
+                var mesh = renderMesh.mesh;
+                var material = renderMesh.material;
                 sbyte submesh = (sbyte) renderMesh.subMesh;
 
-                EntityManager.SetComponentData(e,
-                    MaterialMeshInfo.FromRenderMeshArrayIndices(
-                        materialIndex,
-                        meshIndex,
-                        submesh));
+                MaterialMeshInfo materialMeshInfo = default;
+
+                // If the Mesh or Material is null or can't be found, use a zero ID which means null.
+                // This will result in proper error rendering.
+                if (material is null || !materialToIndex.TryGetValue(material, out var materialIndex))
+                    materialMeshInfo.MaterialID = BatchMaterialID.Null;
+                else
+                    materialMeshInfo.MaterialArrayIndex = materialIndex;
+
+                if (mesh is null || !meshToIndex.TryGetValue(renderMesh.mesh, out var meshIndex))
+                    materialMeshInfo.MeshID = BatchMeshID.Null;
+                else
+                    materialMeshInfo.MeshArrayIndex = meshIndex;
+
+                materialMeshInfo.Submesh = submesh;
+
+                // Explicitly check the raw integer vs the zero value, because using the
+                // "MaterialID" property will assert if the value is an array index.
+                if (materialMeshInfo.Material == 0 || materialMeshInfo.Mesh == 0)
+                {
+                    Renderer authoring = null;
+                    if (EntityManager.HasComponent<MeshRendererBakingData>(e))
+                        authoring = EntityManager.GetComponentData<MeshRendererBakingData>(e).MeshRenderer.Value;
+
+                    string entityDebugString = authoring is null
+                        ? e.ToString()
+                        : authoring.ToString();
+
+                    // Use authoring as a context object in the warning message, so clicking the warning selects
+                    // the corresponding authoring GameObject.
+                    Debug.LogWarning(
+                        $"Entity \"{entityDebugString}\" has an invalid Mesh or Material, and will not render correctly at runtime. Mesh: {mesh}, Material: {material}, Submesh: {submesh}",
+                        authoring);
+                }
+
+                EntityManager.SetComponentData(e, materialMeshInfo);
             }
         }
     }

@@ -11,7 +11,7 @@ using UnityEditor;
 
 namespace Unity.Rendering.Occlusion.Masked.Dots
 {
-    public class OccluderBaker : Baker<Occluder>
+    class OccluderBaker : Baker<Occluder>
     {
         public override void Bake(Occluder authoring)
         {
@@ -135,36 +135,6 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                 component.indexData = blobAssetRef;
             }
 
-            // Create a blob asset reference to hold the transformed vertex data in our new component. This is unique
-            // for every occluder, since it varies with the occluder's world transform. This is why it doesn't need a
-            // hash check.
-            {
-                int size = UnsafeUtility.SizeOf<float4>() * component.vertexCount;
-                var buffer = Memory.Unmanaged.Allocate(size, 64, Allocator.Persistent);
-                component.transformedVertexData = BlobAssetReference<float4>.Create(buffer, size);
-
-                int size_expanded_clipping = UnsafeUtility.SizeOf<float>() * component.indexCount * 6; // multiplied by 6 as the expansion of 1 + up to 5 triangles after clipping
-                {
-                    var data = Memory.Unmanaged.Allocate(size_expanded_clipping, 64, Allocator.Persistent);
-                    component.vertex_x = BlobAssetReference<float>.Create(data, size_expanded_clipping);
-                }
-                {
-                    var data = Memory.Unmanaged.Allocate(size_expanded_clipping, 64, Allocator.Persistent);
-                    component.vertex_y = BlobAssetReference<float>.Create(data, size_expanded_clipping);
-                }
-                {
-                    var data = Memory.Unmanaged.Allocate(size_expanded_clipping, 64, Allocator.Persistent);
-                    component.vertex_w = BlobAssetReference<float>.Create(data, size_expanded_clipping);
-                }
-
-                int size_expanded_tri_min_max = UnsafeUtility.SizeOf<float2>() * component.indexCount / 3 * 6;
-                var data_min = Memory.Unmanaged.Allocate(size_expanded_tri_min_max, 64, Allocator.Persistent);
-                component.triangle_min = BlobAssetReference<float2>.Create(data_min, size_expanded_tri_min_max);
-
-                var data_max = Memory.Unmanaged.Allocate(size_expanded_tri_min_max, 64, Allocator.Persistent);
-                component.triangle_max = BlobAssetReference<float2>.Create(data_max, size_expanded_tri_min_max);
-            }
-
             // Set the transform of the occluder
             {
                 // Compute the full 4x4 matrix. The last row will always be (0, 0, 0, 1). We discard this row to reduce
@@ -172,10 +142,6 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                 float4x4 mtx = float4x4.TRS(occluder.localPosition, occluder.localRotation, occluder.localScale);
                 component.localTransform = new float3x4(mtx.c0.xyz, mtx.c1.xyz, mtx.c2.xyz, mtx.c3.xyz);
             }
-
-            // Set other properties of the new component
-            component.screenMin = float.MaxValue;
-            component.screenMax = -float.MaxValue;
 
             // Add the component to the entity
             AddComponent(entity, component);

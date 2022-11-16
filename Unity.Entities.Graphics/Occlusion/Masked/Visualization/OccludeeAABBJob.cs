@@ -11,7 +11,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
 {
     /* Return a mesh with one quad for each test (i.e. occludee). */
     [BurstCompile]
-    public struct OccludeeAABBJob : IJobParallelFor
+    struct OccludeeAABBJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<OcclusionTest> CulledTests;
 

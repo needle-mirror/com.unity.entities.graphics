@@ -121,12 +121,12 @@ namespace Unity.Rendering
         public EntitiesGraphicsArchetypes GraphicsArchetypes;
         public NativeParallelHashMap<int, MaterialPropertyType> TypeIndexToMaterialProperty;
 
-        public BatchCreateInfo Create(ArchetypeChunk chunk)
+        public BatchCreateInfo Create(ArchetypeChunk chunk, ref MaterialPropertyType failureProperty)
         {
             return new BatchCreateInfo
             {
                 GraphicsArchetypeIndex =
-                    GraphicsArchetypes.GetGraphicsArchetypeIndex(chunk.Archetype, TypeIndexToMaterialProperty),
+                    GraphicsArchetypes.GetGraphicsArchetypeIndex(chunk.Archetype, TypeIndexToMaterialProperty, ref failureProperty),
                 Chunk = chunk,
             };
         }
@@ -159,7 +159,7 @@ namespace Unity.Rendering
             Assert.IsFalse(useEnabledMask);
 
             var sharedComponentIndex = chunk.GetSharedComponentIndex(RenderMeshArrayHandle);
-            var materialMeshInfos = chunk.GetNativeArray(MaterialMeshInfoHandle);
+            var materialMeshInfos = chunk.GetNativeArray(ref MaterialMeshInfoHandle);
 
             BRGRenderMeshArray brgRenderMeshArray;
             bool found = BRGRenderMeshArrays.TryGetValue(sharedComponentIndex, out brgRenderMeshArray);
@@ -264,6 +264,12 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnCreate()
         {
+            if (!EntitiesGraphicsSystem.EntitiesGraphicsEnabled)
+            {
+                Enabled = false;
+                return;
+            }
+
             m_BRGRenderMeshArrays = new NativeParallelHashMap<int, BRGRenderMeshArray>(256, Allocator.Persistent);
             m_RendererSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
@@ -290,6 +296,8 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnDestroy()
         {
+            if (!EntitiesGraphicsSystem.EntitiesGraphicsEnabled) return;
+
             var brgRenderArrays = m_BRGRenderMeshArrays.GetValueArray(Allocator.Temp);
             for (int i = 0; i < brgRenderArrays.Length; ++i)
             {
@@ -435,6 +443,8 @@ namespace Unity.Rendering
                     {
                         var material = renderArray.Materials[i];
                         var id = m_RendererSystem.RegisterMaterial(material);
+                        if (id == BatchMaterialID.Null)
+                            Debug.LogWarning($"Registering material {material?.ToString() ?? "null"} at index {i} inside a RenderMeshArray failed.");
 
                         brgRenderArray.Materials.Add(id);
                     }
@@ -443,6 +453,8 @@ namespace Unity.Rendering
                     {
                         var mesh = renderArray.Meshes[i];
                         var id = m_RendererSystem.RegisterMesh(mesh);
+                        if (id == BatchMeshID.Null)
+                            Debug.LogWarning($"Registering mesh {mesh?.ToString() ?? "null"} at index {i} inside a RenderMeshArray failed.");
 
                         brgRenderArray.Meshes.Add(id);
                     }
@@ -479,17 +491,20 @@ namespace Unity.Rendering
     [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [UpdateAfter(typeof(UpdatePresentationSystemGroup))]
+    [BurstCompile]
     public unsafe partial class EntitiesGraphicsSystem : SystemBase
     {
-        static private bool s_EntitiesGraphicsEnabled = true;
-
         /// <summary>
         /// Toggles the activation of EntitiesGraphicsSystem.
         /// </summary>
         /// <remarks>
         /// To disable this system, use the HYBRID_RENDERER_DISABLED define.
         /// </remarks>
-        public static bool EntitiesGraphicsEnabled => s_EntitiesGraphicsEnabled;
+#if HYBRID_RENDERER_DISABLED
+        public static bool EntitiesGraphicsEnabled => false;
+#else
+        public static bool EntitiesGraphicsEnabled => EntitiesGraphicsUtils.IsEntitiesGraphicsSupportedOnSystem();
+#endif
 
 #if !DISABLE_HYBRID_RENDERER_ERROR_LOADING_SHADER
         private static bool ErrorShaderEnabled => true;
@@ -626,7 +641,7 @@ namespace Unity.Rendering
 #endif
 
 #if USE_UNITY_OCCLUSION
-        public OcclusionCulling OcclusionCulling { get; private set; }
+        internal OcclusionCulling OcclusionCulling { get; private set; }
 #endif
 
         private bool m_FirstFrameAfterInit;
@@ -656,15 +671,10 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnCreate()
         {
-            // If all graphics rendering has been disabled, early out from all HR functionality
-#if HYBRID_RENDERER_DISABLED
-            s_EntitiesGraphicsEnabled = false;
-#else
             // If -nographics is enabled, or if there is no compute shader support, disable HR.
-            s_EntitiesGraphicsEnabled = EntitiesGraphicsUtils.IsEntitiesGraphicsSupportedOnSystem();
-#endif
-            if (!s_EntitiesGraphicsEnabled)
+            if (!EntitiesGraphicsEnabled)
             {
+                Enabled = false;
                 Debug.Log("No SRP present, no compute shader support, or running with -nographics. Entities Graphics package disabled");
                 return;
             }
@@ -958,7 +968,7 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnDestroy()
         {
-            if (!s_EntitiesGraphicsEnabled) return;
+            if (!EntitiesGraphicsEnabled) return;
             CompleteJobs(true);
             Dispose();
         }
@@ -1058,8 +1068,6 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnUpdate()
         {
-            if (!s_EntitiesGraphicsEnabled) return;
-
             JobHandle inputDeps = Dependency;
 
             // Make sure any release jobs that have stored pointers in temp allocated
@@ -1903,7 +1911,28 @@ namespace Unity.Rendering
             }
         }
 
-        private int NumInstancesInChunk(ArchetypeChunk chunk) => chunk.Capacity;
+        static int NumInstancesInChunk(ArchetypeChunk chunk) => chunk.Capacity;
+
+        [BurstCompile]
+        static void CreateBatchCreateInfo(
+            ref BatchCreateInfoFactory batchCreateInfoFactory,
+            ref NativeArray<ArchetypeChunk> newChunks,
+            ref NativeArray<BatchCreateInfo> sortedNewChunks,
+            out MaterialPropertyType failureProperty
+            )
+        {
+            failureProperty = default;
+            failureProperty.TypeIndex = -1;
+            for (int i = 0; i < newChunks.Length; ++i)
+            {
+                sortedNewChunks[i] = batchCreateInfoFactory.Create(newChunks[i], ref failureProperty);
+                if (failureProperty.TypeIndex >= 0)
+                {
+                    return;
+                }
+            }
+            sortedNewChunks.Sort();
+        }
 
         private int AddNewChunks(NativeArray<ArchetypeChunk> newChunks)
         {
@@ -1922,11 +1951,11 @@ namespace Unity.Rendering
             };
 
             var sortedNewChunks = new NativeArray<BatchCreateInfo>(newChunks.Length, Allocator.Temp);
-
-            for (int i = 0; i < newChunks.Length; ++i)
-                sortedNewChunks[i] = batchCreateInfoFactory.Create(newChunks[i]);
-
-            sortedNewChunks.Sort();
+            CreateBatchCreateInfo(ref batchCreateInfoFactory, ref newChunks, ref sortedNewChunks, out var failureProperty);
+            if (failureProperty.TypeIndex >= 0)
+            {
+                Debug.Assert(false, $"TypeIndex mismatch between key and stored property, Type: {failureProperty.TypeName} ({failureProperty.TypeIndex:x8}), Property: {failureProperty.PropertyName} ({failureProperty.NameID:x8})");
+            }
 
             int batchBegin = 0;
             int numInstances = NumInstancesInChunk(sortedNewChunks[0].Chunk);
@@ -2091,27 +2120,64 @@ namespace Unity.Rendering
             m_BatchInfos[batchIndex] = batchInfo;
 
             // Configure chunk components for each chunk
-            int chunkMetadataBegin = (int)batchInfo.ChunkMetadataAllocation.begin;
-            int chunkOffsetInBatch = 0;
+            var args = new SetBatchChunkDataArgs
+            {
+                BatchChunks = batchChunks,
+                BatchIndex = batchIndex,
+                ChunkProperties = m_ChunkProperties,
+                EntityManager = EntityManager,
+                NumProperties = numProperties,
+                TypeHandles = typeHandles,
+                ChunkMetadataBegin = (int)batchInfo.ChunkMetadataAllocation.begin,
+                ChunkOffsetInBatch = 0,
+                OverrideStreamBegin = overrideStreamBegin
+            };
+            SetBatchChunkData(ref args, ref overrides);
+
+            Debug.Assert(args.ChunkOffsetInBatch == numInstances, "Batch instance count mismatch");
+
+            return true;
+        }
+
+        struct SetBatchChunkDataArgs
+        {
+            public int ChunkMetadataBegin;
+            public int ChunkOffsetInBatch;
+            public NativeArray<BatchCreateInfo> BatchChunks;
+            public int BatchIndex;
+            public int NumProperties;
+            public BatchCreationTypeHandles TypeHandles;
+            public EntityManager EntityManager;
+            public NativeArray<ChunkProperty> ChunkProperties;
+            public NativeArray<int> OverrideStreamBegin;
+        }
+
+        [BurstCompile]
+        static void SetBatchChunkData(ref SetBatchChunkDataArgs args, ref UnsafeList<ArchetypePropertyOverride> overrides)
+        {
+            var batchChunks = args.BatchChunks;
+            int numProperties = args.NumProperties;
+            var overrideStreamBegin = args.OverrideStreamBegin;
+            int chunkOffsetInBatch = args.ChunkOffsetInBatch;
+            int chunkMetadataBegin = args.ChunkMetadataBegin;
             for (int i = 0; i < batchChunks.Length; ++i)
             {
                 var chunk = batchChunks[i].Chunk;
                 var entitiesGraphicsChunkInfo = new EntitiesGraphicsChunkInfo
                 {
                     Valid = true,
-                    BatchIndex = batchIndex,
+                    BatchIndex = args.BatchIndex,
                     ChunkTypesBegin = chunkMetadataBegin,
                     ChunkTypesEnd = chunkMetadataBegin + numProperties,
                     CullingData = new EntitiesGraphicsChunkCullingData
                     {
-                        Flags = ComputeCullingFlags(chunk, typeHandles),
+                        Flags = ComputeCullingFlags(chunk, args.TypeHandles),
                         InstanceLodEnableds = default,
                         ChunkOffsetInBatch = chunkOffsetInBatch,
                     },
                 };
 
-                EntityManager.SetChunkComponentData(chunk, entitiesGraphicsChunkInfo);
-
+                args.EntityManager.SetChunkComponentData(chunk, entitiesGraphicsChunkInfo);
                 for (int j = 0; j < numProperties; ++j)
                 {
                     var propertyOverride = overrides[j];
@@ -2123,27 +2189,26 @@ namespace Unity.Rendering
                         ValueSizeBytesGPU = propertyOverride.SizeBytesGPU,
                     };
 
-                    m_ChunkProperties[chunkMetadataBegin + j] = chunkProperty;
+                    args.ChunkProperties[chunkMetadataBegin + j] = chunkProperty;
                 }
 
                 chunkOffsetInBatch += NumInstancesInChunk(chunk);
                 chunkMetadataBegin += numProperties;
             }
 
-            Debug.Assert(chunkOffsetInBatch == numInstances, "Batch instance count mismatch");
-
-            return true;
+            args.ChunkOffsetInBatch = chunkOffsetInBatch;
+            args.ChunkMetadataBegin = chunkMetadataBegin;
         }
 
-        private byte ComputeCullingFlags(ArchetypeChunk chunk, BatchCreationTypeHandles typeHandles)
+        static byte ComputeCullingFlags(ArchetypeChunk chunk, BatchCreationTypeHandles typeHandles)
         {
-            bool hasLodData = chunk.Has(typeHandles.RootLODRange) &&
-                              chunk.Has(typeHandles.LODRange);
+            bool hasLodData = chunk.Has(ref typeHandles.RootLODRange) &&
+                              chunk.Has(ref typeHandles.LODRange);
 
             // TODO: Do we need non-per-instance culling anymore? It seems to always be added
             // for converted objects, and doesn't seem to be removed ever, so the only way to
             // not have it is to manually remove it or create entities from scratch.
-            bool hasPerInstanceCulling = !hasLodData || chunk.Has(typeHandles.PerInstanceCulling);
+            bool hasPerInstanceCulling = !hasLodData || chunk.Has(ref typeHandles.PerInstanceCulling);
 
             byte flags = 0;
 
@@ -2276,7 +2341,7 @@ namespace Unity.Rendering
 
         internal void UpdateSpecCubeHDRDecode(Vector4 specCubeHDRDecode)
         {
-            if (!s_EntitiesGraphicsEnabled) return;
+            if (!Enabled) return;
 
             bool hdrDecodeDirty = specCubeHDRDecode != m_GlobalValues.SpecCube0_HDR;
             if (hdrDecodeDirty)
@@ -2289,7 +2354,7 @@ namespace Unity.Rendering
 
         internal void UpdateGlobalAmbientProbe(SHCoefficients globalAmbientProbe)
         {
-            if (!s_EntitiesGraphicsEnabled) return;
+            if (!Enabled) return;
 
             bool globalAmbientProbeDirty = globalAmbientProbe != m_GlobalValues.SHCoefficients;
             if (globalAmbientProbeDirty)

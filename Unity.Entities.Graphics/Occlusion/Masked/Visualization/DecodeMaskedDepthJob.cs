@@ -9,7 +9,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
 {
     /* Unpack the CPU-rasterized masked depth buffer into a human-readable depth buffer. */
     [BurstCompile]
-    public unsafe struct DecodeMaskedDepthJob : IJobParallelFor
+    unsafe struct DecodeMaskedDepthJob : IJobParallelFor
     {
         [ReadOnly] public int NumPixelsX;
         [ReadOnly] public int NumPixelsY;

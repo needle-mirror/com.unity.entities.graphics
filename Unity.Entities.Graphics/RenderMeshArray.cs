@@ -21,7 +21,7 @@ namespace Unity.Rendering
     /// </remarks>
     public struct MaterialMeshInfo : IComponentData
     {
-        
+
         /// <summary>
         /// The material ID.
         /// </summary>
@@ -40,7 +40,7 @@ namespace Unity.Rendering
         internal bool IsRuntimeMaterial => Material >= 0;
         internal bool IsRuntimeMesh => Mesh >= 0;
 
-        
+
         /// <summary>
         /// Converts the given array index (typically the index inside RenderMeshArray) into
         /// a negative number that denotes that array position.
@@ -59,10 +59,10 @@ namespace Unity.Rendering
         public static int StaticIndexToArrayIndex(int staticIndex) => math.abs(staticIndex) - 1;
 
         /// <summary>
-        /// Creates an instance of MaterialMeshInfo from material and mesh/sub-mesh ids.
+        /// Creates an instance of MaterialMeshInfo from material and mesh/sub-mesh indices in the corresponding RenderMeshArray.
         /// </summary>
-        /// <param name="materialIndexInRenderMeshArray">The material ID.</param>
-        /// <param name="meshIndexInRenderMeshArray">The mesh ID.</param>
+        /// <param name="materialIndexInRenderMeshArray">The material index in <see cref="RenderMeshArray.Materials"/>.</param>
+        /// <param name="meshIndexInRenderMeshArray">The mesh index in <see cref="RenderMeshArray.Meshes"/>.</param>
         /// <param name="submeshIndex">An optional submesh ID.</param>
         /// <returns></returns>
         public static MaterialMeshInfo FromRenderMeshArrayIndices(
@@ -83,11 +83,17 @@ namespace Unity.Rendering
             Submesh = submeshIndex;
         }
 
-        private MaterialMeshInfo(BatchMaterialID materialID, BatchMeshID meshID, sbyte submeshIndex = 0)
+        /// <summary>
+        /// Creates an instance of MaterialMeshInfo from material and mesh/sub-mesh IDs registered with <see cref="EntitiesGraphicsSystem"/>
+        /// </summary>
+        /// <param name="materialID">The material ID from <see cref="EntitiesGraphicsSystem.RegisterMaterial"/>.</param>
+        /// <param name="meshID">The mesh ID from <see cref="EntitiesGraphicsSystem.RegisterMesh"/>.</param>
+        /// <param name="submeshIndex">An optional submesh ID.</param>
+        /// <returns></returns>
+        public MaterialMeshInfo(BatchMaterialID materialID, BatchMeshID meshID, sbyte submeshIndex = 0)
             : this((int)materialID.value, (int)meshID.value, submeshIndex)
         {}
 
-        
         /// <summary>
         /// The mesh ID property.
         /// </summary>
@@ -255,7 +261,7 @@ namespace Unity.Rendering
             return mapping;
         }
 
-        
+
         /// <summary>
         /// Returns a 128-bit hash that (almost) uniquely identifies the contents of the component.
         /// </summary>
@@ -379,7 +385,7 @@ namespace Unity.Rendering
             return new RenderMeshArray(materials.Keys.ToArray(), meshes.Keys.ToArray());
         }
 
-        
+
         /// <summary>
         /// Gets the material for given MaterialMeshInfo.
         /// </summary>

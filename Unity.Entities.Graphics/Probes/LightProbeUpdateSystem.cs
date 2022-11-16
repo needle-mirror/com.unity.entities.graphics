@@ -111,8 +111,8 @@ namespace Unity.Rendering
 
             foreach (var chunk in chunks)
             {
-                var chunkSH = chunk.GetNativeArray(SHType);
-                var chunkLocalToWorld = chunk.GetNativeArray(localToWorldType);
+                var chunkSH = chunk.GetNativeArray(ref SHType);
+                var chunkLocalToWorld = chunk.GetNativeArray(ref localToWorldType);
 
                 m_Positions.Clear();
                 m_LightProbes.Clear();
@@ -143,7 +143,7 @@ namespace Unity.Rendering
                 // This job is not written to support queries with enableable component types.
                 Assert.IsFalse(useEnabledMask);
 
-                var chunkSH = chunk.GetNativeArray(SHType);
+                var chunkSH = chunk.GetNativeArray(ref SHType);
 
                 for (var i = 0; i < chunkSH.Length; i++)
                 {

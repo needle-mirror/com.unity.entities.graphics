@@ -30,9 +30,9 @@ namespace Unity.Rendering.Occlusion.Masked
             // This job is not written to support queries with enableable component types.
             Assert.IsFalse(useEnabledMask);
 
-            var bounds = chunk.GetNativeArray(Bounds);
-            var localToWorld = chunk.GetNativeArray(LocalToWorld);
-            var tests = chunk.GetNativeArray(OcclusionTest);
+            var bounds = chunk.GetNativeArray(ref Bounds);
+            var localToWorld = chunk.GetNativeArray(ref LocalToWorld);
+            var tests = chunk.GetNativeArray(ref OcclusionTest);
 
             var verts = stackalloc float4[16];
 
@@ -118,7 +118,7 @@ namespace Unity.Rendering.Occlusion.Masked
             var combined = new ChunkOcclusionTest();
             combined.screenMin = screenMin;
             combined.screenMax = screenMax;
-            chunk.SetChunkComponentData(ChunkOcclusionTest, combined);
+            chunk.SetChunkComponentData(ref ChunkOcclusionTest, combined);
         }
     }
 }

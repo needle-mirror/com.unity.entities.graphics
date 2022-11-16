@@ -4,19 +4,21 @@ using Unity.Burst.Intrinsics;
 
 namespace Unity.Rendering.Occlusion.Masked
 {
-    public enum CullingResult
+    enum CullingResult
     {
         VISIBLE = 0x0,
         OCCLUDED = 0x1,
         VIEW_CULLED = 0x3
     }
-    public struct Tile
+    
+    struct Tile
     {
         public v128 zMin0;
         public v128 zMin1;
         public v128 mask;
     }
-    public struct ScissorRect
+    
+    struct ScissorRect
     {
         public int mMinX; //!< Screen space X coordinate for left side of scissor rect, inclusive and must be a multiple of 32
         public int mMinY; //!< Screen space Y coordinate for bottom side of scissor rect, inclusive and must be a multiple of 8

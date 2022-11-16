@@ -13,7 +13,7 @@ using UnityEngine.Rendering;
 namespace Unity.Rendering.Occlusion.Masked
 {
 
-    public class BufferGroup
+    class BufferGroup
     {
         public const int TileWidthShift = 5;
         public const int TileHeightShift = 2;
@@ -149,7 +149,12 @@ namespace Unity.Rendering.Occlusion.Masked
 
         public Texture2D GetVisualizationTexture()
         {
-            return m_DebugView?.gpuDepth;
+            if (m_DebugView != null)
+            {
+                m_DebugView.ReallocateIfNeeded(NumPixelsX, NumPixelsY);
+                return m_DebugView.gpuDepth;
+            }
+            return null;
         }
 
         public void RenderToTextures(EntityQuery testQuery, EntityQuery meshQuery, JobHandle dependency, DebugRenderMode mode)

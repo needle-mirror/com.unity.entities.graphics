@@ -38,14 +38,14 @@ namespace Unity.Rendering.Occlusion.Masked
             var chunk = visibilityItem.Chunk;
             var chunkVisibility = visibilityItem.Visibility;
 
-            if (!chunk.HasChunkComponent(ChunkOcclusionTest))
+            if (!chunk.HasChunkComponent(ref ChunkOcclusionTest))
             {
                 /* Because this is not a IJobChunk job, it will not filter by archetype. So there is no guarantee that
                    the current chunk has any occlusion test jobs on it. */
                 return;
             }
 
-            var hybridChunkInfo = chunk.GetChunkComponentData(EntitiesGraphicsChunkInfo);
+            var hybridChunkInfo = chunk.GetChunkComponentData(ref EntitiesGraphicsChunkInfo);
             if (!hybridChunkInfo.Valid)
                 return;
 
@@ -62,7 +62,7 @@ namespace Unity.Rendering.Occlusion.Masked
                 return;
             }
 
-            var chunkTest = chunk.GetChunkComponentData(ChunkOcclusionTest);
+            var chunkTest = chunk.GetChunkComponentData(ref ChunkOcclusionTest);
             CullingResult chunkCullingResult = TestRect(
                 chunkTest.screenMin.xy,
                 chunkTest.screenMax.xy,
@@ -101,7 +101,7 @@ namespace Unity.Rendering.Occlusion.Masked
                 return;
             }
 
-            var tests = chunk.GetNativeArray(OcclusionTest);
+            var tests = chunk.GetNativeArray(ref OcclusionTest);
 
             /* Each chunk is guaranteed to have no more than 128 entities. So the Entities Graphics package uses `VisibleEntities`,
                which is an array of two 64-bit integers to indicate whether each of these entities is visible. */
@@ -208,113 +208,118 @@ namespace Unity.Rendering.Occlusion.Masked
                 return CullingResult.VIEW_CULLED;
             }
 
-            // Compute screen space bounding box and guard for out of bounds
-            v128 pixelBBox = IntrinsicUtils._mmw_fmadd_ps(X86.Sse.setr_ps(min.x, max.x, max.y, min.y), HalfSize, PixelCenter);
-            v128 pixelBBoxi = X86.Sse2.cvttps_epi32(pixelBBox);
-            pixelBBoxi = IntrinsicUtils._mmw_max_epi32(X86.Sse2.setzero_si128(), IntrinsicUtils._mmw_min_epi32(ScreenSize, pixelBBoxi));
-
-            // Pad bounding box to (32xN) tiles. Tile BB is used for looping / traversal
-            v128 SimdTilePad = X86.Sse2.setr_epi32(0, BufferGroup.TileWidth, 0,  BufferGroup.TileHeight);
-            v128 SimdTilePadMask = X86.Sse2.setr_epi32(
-                ~(BufferGroup.TileWidth - 1),
-                ~(BufferGroup.TileWidth - 1),
-                ~(BufferGroup.TileHeight - 1),
-                ~(BufferGroup.TileHeight - 1)
-            );
-            v128 tileBBoxi = X86.Sse2.and_si128(X86.Sse2.add_epi32(pixelBBoxi, SimdTilePad), SimdTilePadMask);
-
-            int txMin = tileBBoxi.SInt0 >> BufferGroup.TileWidthShift;
-            int txMax = tileBBoxi.SInt1 >> BufferGroup.TileWidthShift;
-            int tileRowIdx = (tileBBoxi.SInt2 >> BufferGroup.TileHeightShift) * NumTilesX;
-            int tileRowIdxEnd = (tileBBoxi.SInt3 >> BufferGroup.TileHeightShift) * NumTilesX;
-
-            // Pad bounding box to (8x4) subtiles. Skip SIMD lanes outside the subtile BB
-            v128 SimdSubTilePad = X86.Sse2.setr_epi32(0, BufferGroup.SubTileWidth, 0, BufferGroup.SubTileHeight);
-            v128 SimdSubTilePadMask = X86.Sse2.setr_epi32(
-                ~(BufferGroup.SubTileWidth - 1),
-                ~(BufferGroup.SubTileWidth - 1),
-                ~(BufferGroup.SubTileHeight - 1),
-                ~(BufferGroup.SubTileHeight - 1)
-            );
-            v128 subTileBBoxi = X86.Sse2.and_si128(X86.Sse2.add_epi32(pixelBBoxi, SimdSubTilePad), SimdSubTilePadMask);
-
-            v128 stxmin = X86.Sse2.set1_epi32(subTileBBoxi.SInt0 - 1); // - 1 to be able to use GT test
-            v128 stymin = X86.Sse2.set1_epi32(subTileBBoxi.SInt2 - 1); // - 1 to be able to use GT test
-            v128 stxmax = X86.Sse2.set1_epi32(subTileBBoxi.SInt1);
-            v128 stymax = X86.Sse2.set1_epi32(subTileBBoxi.SInt3);
-
-            // Setup pixel coordinates used to discard lanes outside subtile BB
-            v128 SimdSubTileColOffset = X86.Sse2.setr_epi32(
-                0,
-                BufferGroup.SubTileWidth,
-                BufferGroup.SubTileWidth * 2,
-                BufferGroup.SubTileWidth * 3
-            );
-            v128 startPixelX = X86.Sse2.add_epi32(SimdSubTileColOffset, X86.Sse2.set1_epi32(tileBBoxi.SInt0));
-            // TODO: (Apoorva) LHS is zero. We can just use the RHS directly.
-            v128 pixelY = X86.Sse2.add_epi32(X86.Sse2.setzero_si128(), X86.Sse2.set1_epi32(tileBBoxi.SInt2));
-
-            // Compute z from w. Note that z is reversed order, 0 = far, 1/near = near, which
-            // means we use a greater than test, so zMax is used to test for visibility. (z goes from 0 = far to 2 = near for ortho)
-
-            v128 zMax;
-            if (projectionType == BatchCullingProjectionType.Orthographic)
+            if (X86.Sse4_1.IsSse41Supported)
             {
-                zMax = IntrinsicUtils._mmw_fmadd_ps(X86.Sse.set1_ps(-1.0f), X86.Sse.set1_ps(wmin), X86.Sse.set1_ps(1.0f));
-            }
-            else
-            {
-                zMax = X86.Sse.div_ps(X86.Sse.set1_ps(1f), X86.Sse.set1_ps(wmin));
-            }
+                // Compute screen space bounding box and guard for out of bounds
+                v128 pixelBBox = IntrinsicUtils._mmw_fmadd_ps(X86.Sse.setr_ps(min.x, max.x, max.y, min.y), HalfSize, PixelCenter);
+                v128 pixelBBoxi = X86.Sse2.cvttps_epi32(pixelBBox);
+                pixelBBoxi = X86.Sse4_1.max_epi32(X86.Sse2.setzero_si128(), X86.Sse4_1.min_epi32(ScreenSize, pixelBBoxi));
 
-            for (; ; )
-            {
-                v128 pixelX = startPixelX;
+                // Pad bounding box to (32xN) tiles. Tile BB is used for looping / traversal
+                v128 SimdTilePad = X86.Sse2.setr_epi32(0, BufferGroup.TileWidth, 0,  BufferGroup.TileHeight);
+                v128 SimdTilePadMask = X86.Sse2.setr_epi32(
+                    ~(BufferGroup.TileWidth - 1),
+                    ~(BufferGroup.TileWidth - 1),
+                    ~(BufferGroup.TileHeight - 1),
+                    ~(BufferGroup.TileHeight - 1)
+                );
+                v128 tileBBoxi = X86.Sse2.and_si128(X86.Sse2.add_epi32(pixelBBoxi, SimdTilePad), SimdTilePadMask);
 
-                for (int tx = txMin; ;)
+                int txMin = tileBBoxi.SInt0 >> BufferGroup.TileWidthShift;
+                int txMax = tileBBoxi.SInt1 >> BufferGroup.TileWidthShift;
+                int tileRowIdx = (tileBBoxi.SInt2 >> BufferGroup.TileHeightShift) * NumTilesX;
+                int tileRowIdxEnd = (tileBBoxi.SInt3 >> BufferGroup.TileHeightShift) * NumTilesX;
+
+                // Pad bounding box to (8x4) subtiles. Skip SIMD lanes outside the subtile BB
+                v128 SimdSubTilePad = X86.Sse2.setr_epi32(0, BufferGroup.SubTileWidth, 0, BufferGroup.SubTileHeight);
+                v128 SimdSubTilePadMask = X86.Sse2.setr_epi32(
+                    ~(BufferGroup.SubTileWidth - 1),
+                    ~(BufferGroup.SubTileWidth - 1),
+                    ~(BufferGroup.SubTileHeight - 1),
+                    ~(BufferGroup.SubTileHeight - 1)
+                );
+                v128 subTileBBoxi = X86.Sse2.and_si128(X86.Sse2.add_epi32(pixelBBoxi, SimdSubTilePad), SimdSubTilePadMask);
+
+                v128 stxmin = X86.Sse2.set1_epi32(subTileBBoxi.SInt0 - 1); // - 1 to be able to use GT test
+                v128 stymin = X86.Sse2.set1_epi32(subTileBBoxi.SInt2 - 1); // - 1 to be able to use GT test
+                v128 stxmax = X86.Sse2.set1_epi32(subTileBBoxi.SInt1);
+                v128 stymax = X86.Sse2.set1_epi32(subTileBBoxi.SInt3);
+
+                // Setup pixel coordinates used to discard lanes outside subtile BB
+                v128 SimdSubTileColOffset = X86.Sse2.setr_epi32(
+                    0,
+                    BufferGroup.SubTileWidth,
+                    BufferGroup.SubTileWidth * 2,
+                    BufferGroup.SubTileWidth * 3
+                );
+                v128 startPixelX = X86.Sse2.add_epi32(SimdSubTileColOffset, X86.Sse2.set1_epi32(tileBBoxi.SInt0));
+                // TODO: (Apoorva) LHS is zero. We can just use the RHS directly.
+                v128 pixelY = X86.Sse2.add_epi32(X86.Sse2.setzero_si128(), X86.Sse2.set1_epi32(tileBBoxi.SInt2));
+
+                // Compute z from w. Note that z is reversed order, 0 = far, 1/near = near, which
+                // means we use a greater than test, so zMax is used to test for visibility. (z goes from 0 = far to 2 = near for ortho)
+
+                v128 zMax;
+                if (projectionType == BatchCullingProjectionType.Orthographic)
                 {
-                    int tileIdx = tileRowIdx + tx;
+                    zMax = IntrinsicUtils._mmw_fmadd_ps(X86.Sse.set1_ps(-1.0f), X86.Sse.set1_ps(wmin), X86.Sse.set1_ps(1.0f));
+                }
+                else
+                {
+                    zMax = X86.Sse.div_ps(X86.Sse.set1_ps(1f), X86.Sse.set1_ps(wmin));
+                }
 
-                    // Fetch zMin from masked hierarchical Z buffer
-                    v128 mask = tiles[tileIdx].mask;
-                    v128 zMin0 = IntrinsicUtils._mmw_blendv_ps(tiles[tileIdx].zMin0, tiles[tileIdx].zMin1, X86.Sse2.cmpeq_epi32(mask, X86.Sse2.set1_epi32(~0)));
-                    v128 zMin1 = IntrinsicUtils._mmw_blendv_ps(tiles[tileIdx].zMin1, tiles[tileIdx].zMin0, X86.Sse2.cmpeq_epi32(mask, X86.Sse2.setzero_si128()));
-                    v128 zBuf = X86.Sse.min_ps(zMin0, zMin1);
+                for (; ; )
+                {
+                    v128 pixelX = startPixelX;
 
-                    // Perform conservative greater than test against hierarchical Z buffer (zMax >= zBuf means the subtile is visible)
-                    v128 zPass = X86.Sse.cmpge_ps(zMax, zBuf);  //zPass = zMax >= zBuf ? ~0 : 0
-
-                    // Mask out lanes corresponding to subtiles outside the bounding box
-                    v128 bboxTestMin = X86.Sse2.and_si128(X86.Sse2.cmpgt_epi32(pixelX, stxmin), X86.Sse2.cmpgt_epi32(pixelY, stymin));
-                    v128 bboxTestMax = X86.Sse2.and_si128(X86.Sse2.cmpgt_epi32(stxmax, pixelX), X86.Sse2.cmpgt_epi32(stymax, pixelY));
-                    v128 boxMask = X86.Sse2.and_si128(bboxTestMin, bboxTestMax);
-                    zPass = X86.Sse2.and_si128(zPass, boxMask);
-
-                    // If not all tiles failed the conservative z test we can immediately terminate the test
-                    if (IntrinsicUtils._mmw_testz_epi32(zPass, zPass) == 0)
+                    for (int tx = txMin; ;)
                     {
-                        return CullingResult.VISIBLE;
+                        int tileIdx = tileRowIdx + tx;
+
+                        // Fetch zMin from masked hierarchical Z buffer
+                        v128 mask = tiles[tileIdx].mask;
+                        v128 zMin0 = X86.Sse4_1.blendv_ps(tiles[tileIdx].zMin0, tiles[tileIdx].zMin1, X86.Sse2.cmpeq_epi32(mask, X86.Sse2.set1_epi32(~0)));
+                        v128 zMin1 = X86.Sse4_1.blendv_ps(tiles[tileIdx].zMin1, tiles[tileIdx].zMin0, X86.Sse2.cmpeq_epi32(mask, X86.Sse2.setzero_si128()));
+                        v128 zBuf = X86.Sse.min_ps(zMin0, zMin1);
+
+                        // Perform conservative greater than test against hierarchical Z buffer (zMax >= zBuf means the subtile is visible)
+                        v128 zPass = X86.Sse.cmpge_ps(zMax, zBuf);  //zPass = zMax >= zBuf ? ~0 : 0
+
+                        // Mask out lanes corresponding to subtiles outside the bounding box
+                        v128 bboxTestMin = X86.Sse2.and_si128(X86.Sse2.cmpgt_epi32(pixelX, stxmin), X86.Sse2.cmpgt_epi32(pixelY, stymin));
+                        v128 bboxTestMax = X86.Sse2.and_si128(X86.Sse2.cmpgt_epi32(stxmax, pixelX), X86.Sse2.cmpgt_epi32(stymax, pixelY));
+                        v128 boxMask = X86.Sse2.and_si128(bboxTestMin, bboxTestMax);
+                        zPass = X86.Sse2.and_si128(zPass, boxMask);
+
+                        // If not all tiles failed the conservative z test we can immediately terminate the test
+                        if (X86.Sse4_1.testz_si128(zPass, zPass) == 0)
+                        {
+                            return CullingResult.VISIBLE;
+                        }
+
+                        if (++tx >= txMax)
+                        {
+                            break;
+                        }
+
+                        pixelX = X86.Sse2.add_epi32(pixelX, X86.Sse2.set1_epi32(BufferGroup.TileWidth));
                     }
 
-                    if (++tx >= txMax)
+                    tileRowIdx += NumTilesX;
+
+                    if (tileRowIdx >= tileRowIdxEnd)
                     {
                         break;
                     }
 
-                    pixelX = X86.Sse2.add_epi32(pixelX, X86.Sse2.set1_epi32(BufferGroup.TileWidth));
+                    pixelY = X86.Sse2.add_epi32(pixelY, X86.Sse2.set1_epi32(BufferGroup.TileHeight));
                 }
 
-                tileRowIdx += NumTilesX;
-
-                if (tileRowIdx >= tileRowIdxEnd)
-                {
-                    break;
-                }
-
-                pixelY = X86.Sse2.add_epi32(pixelY, X86.Sse2.set1_epi32(BufferGroup.TileHeight));
+                return CullingResult.OCCLUDED;
             }
-
-            return CullingResult.OCCLUDED;
+            else
+                throw new System.NotImplementedException();
         }
     }
 }

@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<engine:UXML
+<ui:UXML
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xmlns:engine="UnityEngine.UIElements"
-    xmlns:editor="UnityEditor.UIElements"
-    xsi:noNamespaceSchemaLocation="../../../../UIElementsSchema/UIElements.xsd"
+    xmlns:ui="UnityEngine.UIElements"
 >
-    <engine:Label text="Hello World! From UXML" />
-</engine:UXML>
+    <ui:ScrollView scroll-deceleration-rate="0,135" elasticity="0,1" />
+</ui:UXML>

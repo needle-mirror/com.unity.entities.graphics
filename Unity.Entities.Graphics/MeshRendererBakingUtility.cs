@@ -48,12 +48,6 @@ namespace Unity.Rendering
 #pragma warning disable CS0162
         private static void AddRendererComponents<T>(Entity entity, Baker<T> baker, in RenderMeshDescription renderMeshDescription, RenderMesh renderMesh) where T : Component
         {
-#if UNITY_EDITOR
-            // Skip the validation check in the player to minimize overhead.
-            if (!RenderMeshUtility.ValidateMesh(renderMesh))
-                return;
-#endif
-
             // Entities with Static are never rendered with motion vectors
             bool inMotionPass = RenderMeshUtility.kUseHybridMotionPass &&
                                 renderMeshDescription.FilterSettings.IsInMotionPass &&
@@ -75,7 +69,7 @@ namespace Unity.Rendering
             baker.SetComponent(entity, new RenderBounds { Value = localBounds });
         }
 
-        internal static void Convert<T>(Baker<T> baker, Renderer authoring, Mesh mesh, List<Material> sharedMaterials, bool attachToPrimaryEntityForSingleMaterial, out List<Entity> additionalEntities, Transform root = null) where T : Component
+        internal static void Convert<T>(Baker<T> baker, Renderer authoring, Mesh mesh, List<Material> sharedMaterials, bool attachToPrimaryEntityForSingleMaterial, out List<Entity> additionalEntities, UnityEngine.Transform root = null) where T : Component
         {
             additionalEntities = new List<Entity>();
 
@@ -157,7 +151,7 @@ namespace Unity.Rendering
             RenderMesh renderMesh,
             Renderer renderer,
             List<Material> sharedMaterials,
-            Transform root,
+            UnityEngine.Transform root,
             out List<Entity> additionalEntities) where T : Component
         {
             CreateLODState(baker, renderer, out var lodState);
@@ -182,17 +176,16 @@ namespace Unity.Rendering
                     var localToWorld = root.localToWorldMatrix;
                     baker.AddComponent(meshEntity, new LocalToWorld {Value = localToWorld});
 #if !ENABLE_TRANSFORM_V1
+                    // TODO(DOTS-7063): FromMatrix should throw here if the matrix is unrepresentable as TransformData.
                     baker.AddComponent(meshEntity,
-                        new LocalToWorldTransform { Value = UniformScaleTransform.FromMatrix(localToWorld) });
+                        LocalTransform.FromMatrix(localToWorld));
 #endif
 
                     if (!baker.IsStatic())
                     {
                         var rootEntity = baker.GetEntity(root);
                         baker.AddComponent(meshEntity, new Parent {Value = rootEntity});
-#if !ENABLE_TRANSFORM_V1
-                        baker.AddComponent(meshEntity, new LocalToParentTransform {Value = UniformScaleTransform.Identity});
-#else
+#if ENABLE_TRANSFORM_V1
                         baker.AddComponent(meshEntity, new LocalToParent {Value = float4x4.identity});
 #endif
                     }

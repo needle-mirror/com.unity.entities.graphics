@@ -25,7 +25,7 @@ struct BlendShapeVertexDelta
 };
 #define SIZE_OF_VERTEX_DELTA 10
 
-uniform StructuredBuffer<float>	 		_BlendShapeVertexData;
+uniform ByteAddressBuffer		 		_BlendShapeVertexData;
 uniform ByteAddressBuffer				_BlendShapeWeights;
 uniform RWStructuredBuffer<VertexData>	_DeformedMeshData : register(u1);
 
@@ -37,22 +37,28 @@ uint g_BlendShapeCount;
 
 BlendShapeVertexDelta LoadBlendShapeVertex(int index)
 {
+	index = index << 2;
+	uint4 v1 = _BlendShapeVertexData.Load4(index + 0 * 16);
+	uint3 v2 = _BlendShapeVertexData.Load3(index + 1 * 16);
+	uint3 v3 = _BlendShapeVertexData.Load3(index + 2 * 16);
+
 	BlendShapeVertexDelta data;
-	data.BlendShapeIndex = asint(_BlendShapeVertexData[index]);
-	data.Position	= float3(_BlendShapeVertexData[index + 1], _BlendShapeVertexData[index + 2], _BlendShapeVertexData[index + 3]);
-	data.Normal		= float3(_BlendShapeVertexData[index + 4], _BlendShapeVertexData[index + 5], _BlendShapeVertexData[index + 6]);
-	data.Tangent	= float3(_BlendShapeVertexData[index + 7], _BlendShapeVertexData[index + 8], _BlendShapeVertexData[index + 9]);
+	data.BlendShapeIndex = asint(v1.x);
+	data.Position = asfloat(v1.yzw);
+	data.Normal = asfloat(v2.xyz);
+	data.Tangent = asfloat(v3.xyz);
 	return data;
 }
 
 int2 LoadBlendShapeRange(uint index)
 {
-	return int2(asint(_BlendShapeVertexData[index]), asint(_BlendShapeVertexData[index + 1]));
+	int2 range = asint(_BlendShapeVertexData.Load2(index << 2));
+	return range;
 }
 
 float LoadBlendWeight(uint index)
 {
-	return asfloat(_BlendShapeWeights.Load(index * 4));
+	return asfloat(_BlendShapeWeights.Load(index << 2));
 }
 
 [numthreads(NBR_THREADS_X, NBR_THREADS_Y, NBR_THREADS_Z)]

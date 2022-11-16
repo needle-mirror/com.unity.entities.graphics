@@ -12,7 +12,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
 {
     /* Return a mesh with four quad forming an outline for each test (i.e. occludee). */
     [BurstCompile]
-    public struct OccludeeOutlineJob : IJobParallelFor
+    struct OccludeeOutlineJob : IJobParallelFor
     {
         [ReadOnly] public float2 InvResolution;
         [ReadOnly] public NativeArray<OcclusionTest> AllTests;

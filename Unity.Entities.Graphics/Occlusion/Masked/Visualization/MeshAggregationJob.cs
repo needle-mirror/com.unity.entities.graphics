@@ -14,7 +14,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
 {
     /* Return a single mesh containing all of the input meshes, with a stable random color assigned to each source mesh. */
     [BurstCompile]
-    public unsafe struct MeshAggregationJob : IJobParallelFor
+    unsafe struct MeshAggregationJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<OcclusionMesh> Meshes;
         [ReadOnly] public NativeArray<LocalToWorld> LocalToWorlds;

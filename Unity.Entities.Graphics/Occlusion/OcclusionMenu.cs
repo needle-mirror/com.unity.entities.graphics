@@ -37,6 +37,8 @@ namespace Unity.Rendering.Occlusion
             {
                 var occlusionCulling = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>().OcclusionCulling;
                 occlusionCulling.IsEnabled = !occlusionCulling.IsEnabled;
+
+                OcclusionBrowseWindow.Refresh();
             }
         }
 
@@ -120,12 +122,6 @@ namespace Unity.Rendering.Occlusion
             {
                 meshRenderer.AddComponentIfNeeded<Occluder>();
             }, OccluderEditMode.AllObjects);
-        }
-
-        [MenuItem(kOcclusionMenu + "Occlusion Window")]
-        static void OpenOcclusionWindow()
-        {
-            OcclusionWindow.ShowWindow();
         }
 
         enum OccluderEditMode

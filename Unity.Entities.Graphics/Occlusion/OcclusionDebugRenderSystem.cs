@@ -8,10 +8,6 @@ using UnityEngine.Rendering;
 using Unity.Rendering.Occlusion.Masked;
 using Unity.Rendering.Occlusion.Masked.Visualization;
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
-
 namespace Unity.Rendering.Occlusion
 {
 
@@ -23,7 +19,7 @@ namespace Unity.Rendering.Occlusion
     [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [UpdateAfter(typeof(EntitiesGraphicsSystem))]
-   unsafe public partial class OcclusionDebugRenderSystem : SystemBase
+   partial class OcclusionDebugRenderSystem : SystemBase
    {
         private EntitiesGraphicsSystem entitiesGraphicsSystem;
         private CommandBuffer cmdComposite = new CommandBuffer() { name = "Occlusion debug composite" };

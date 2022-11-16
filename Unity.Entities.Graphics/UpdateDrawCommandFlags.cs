@@ -26,10 +26,10 @@ namespace Unity.Rendering
             // This job is not written to support queries with enableable component types.
             Assert.IsFalse(useEnabledMask);
 
-            var chunkInfo = chunk.GetChunkComponentData(EntitiesGraphicsChunkInfo);
+            var chunkInfo = chunk.GetChunkComponentData(ref EntitiesGraphicsChunkInfo);
             Debug.Assert(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
 
-            var localToWorld = chunk.GetNativeArray(LocalToWorld);
+            var localToWorld = chunk.GetNativeArray(ref LocalToWorld);
 
             // This job runs for all chunks that have structural changes, so if different
             // RenderFilterSettings get set on entities, they should be picked up by
@@ -58,7 +58,7 @@ namespace Unity.Rendering
                     chunkInfo.CullingData.FlippedWinding[qwordIndex] &= ~mask;
             }
 
-            chunk.SetChunkComponentData(EntitiesGraphicsChunkInfo, chunkInfo);
+            chunk.SetChunkComponentData(ref EntitiesGraphicsChunkInfo, chunkInfo);
         }
 
         private bool RequiresFlippedWinding(LocalToWorld localToWorld)

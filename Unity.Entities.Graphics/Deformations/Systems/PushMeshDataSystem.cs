@@ -563,10 +563,10 @@ namespace Unity.Rendering
                 // This job was converted from IJobChunk; it is not written to support enabled bits.
                 Assert.IsFalse(useEnabledMask);
 
-                var meshIndices = chunk.GetNativeArray(DeformedMeshIndexHandle);
-                var blendWeightIndices = chunk.GetNativeArray(BlendWeightBufferIndexHandle);
-                var skinMatrixIndices = chunk.GetNativeArray(SkinMatrixBufferIndexHandle);
-                var meshInfos = chunk.GetNativeArray(MaterialMeshInfoHandle);
+                var meshIndices = chunk.GetNativeArray(ref DeformedMeshIndexHandle);
+                var blendWeightIndices = chunk.GetNativeArray(ref BlendWeightBufferIndexHandle);
+                var skinMatrixIndices = chunk.GetNativeArray(ref SkinMatrixBufferIndexHandle);
+                var meshInfos = chunk.GetNativeArray(ref MaterialMeshInfoHandle);
 
                 for (int i = 0, chunkEntityCount = chunk.Count; i < chunkEntityCount; i++)
                 {
@@ -596,13 +596,13 @@ namespace Unity.Rendering
 
                         if (meshData.HasBlendShapes)
                         {
-                            Assert.IsTrue(chunk.Has(BlendWeightBufferIndexHandle));
+                            Assert.IsTrue(blendWeightIndices.IsCreated);
                             blendWeightIndices[i] = new BlendWeightBufferIndex { Value = batchRange.BlendShapeIndex + instanceIndex * meshData.BlendShapeCount };
                         }
 
                         if (meshData.HasSkinning)
                         {
-                            Assert.IsTrue(chunk.Has(SkinMatrixBufferIndexHandle));
+                            Assert.IsTrue(skinMatrixIndices.IsCreated);
                             skinMatrixIndices[i] = new SkinMatrixBufferIndex { Value = batchRange.SkinMatrixIndex + instanceIndex * meshData.BoneCount };
                         }
                     }

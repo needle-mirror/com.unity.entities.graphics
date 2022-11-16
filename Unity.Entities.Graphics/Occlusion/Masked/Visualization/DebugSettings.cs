@@ -11,7 +11,7 @@ using UnityEditor;
 
 namespace Unity.Rendering.Occlusion.Masked.Visualization
 {
-    public enum DebugRenderMode
+    enum DebugRenderMode
     {
         None = 0,
         Depth = 1,
@@ -21,7 +21,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
         Inverted = 5
     }
 
-    public class DebugSettings : IDebugData
+    class DebugSettings : IDebugData
     {
         public bool freezeOcclusion;
         public DebugRenderMode debugRenderMode;

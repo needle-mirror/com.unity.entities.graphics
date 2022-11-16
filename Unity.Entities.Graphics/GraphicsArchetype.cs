@@ -142,24 +142,21 @@ namespace Unity.Rendering
 
         public int GetGraphicsArchetypeIndex(
             EntityArchetype archetype,
-            NativeParallelHashMap<int, MaterialPropertyType> typeIndexToMaterialProperty)
+            NativeParallelHashMap<int, MaterialPropertyType> typeIndexToMaterialProperty, ref MaterialPropertyType failureProperty)
         {
             int archetypeIndex;
-
             if (m_GraphicsArchetypes.TryGetValue(archetype, out archetypeIndex))
                 return archetypeIndex;
 
             var types = archetype.GetComponentTypes(Allocator.Temp);
 
             var overrides = new UnsafeList<ArchetypePropertyOverride>(types.Length, Allocator.Temp);
-            void AddOverrideForType(ComponentType type)
+            bool AddOverrideForType(ComponentType type)
             {
                 if (typeIndexToMaterialProperty.TryGetValue(type.TypeIndex, out var property))
                 {
-                    // if-guard assert to avoid GC Alloc when the assert is not hit.
                     if (type.TypeIndex != property.TypeIndex)
-                        Debug.Assert(false,
-                            $"TypeIndex mismatch between key and stored property, Type: {property.TypeName} ({property.TypeIndex:x8}), Property: {property.PropertyName} ({property.NameID:x8})");
+                        return false;
 
                     overrides.Add(new ArchetypePropertyOverride
                     {
@@ -170,11 +167,19 @@ namespace Unity.Rendering
                     });
                 }
 
+                return true;
+
                 // If the type is not found, it was a CPU only type and ignored by Entities Graphics package.
             }
 
             for (int i = 0; i < types.Length; ++i)
-                AddOverrideForType(types[i]);
+            {
+                if (!AddOverrideForType(types[i]))
+                {
+                    typeIndexToMaterialProperty.TryGetValue(types[i].TypeIndex, out failureProperty);
+                    return -1;
+                }
+            }
 
             // Entity is not returned by GetComponentTypes, so we handle it explicitly
             AddOverrideForType(ComponentType.ReadOnly<Entity>());

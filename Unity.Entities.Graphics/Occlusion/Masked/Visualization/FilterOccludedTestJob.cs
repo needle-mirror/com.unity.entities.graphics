@@ -13,7 +13,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
     /* Take in all tests (i.e. occludees), and only return the ones which the occlusion system identifies as being fully
        occluded by other geometry. */
     [BurstCompile]
-    public unsafe struct FilterOccludedTestJob : IJobParallelFor
+    unsafe struct FilterOccludedTestJob : IJobParallelFor
     {
         [ReadOnly] public BatchCullingProjectionType ProjectionType;
         [ReadOnly] public int NumTilesX;

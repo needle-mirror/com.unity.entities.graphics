@@ -1049,7 +1049,7 @@ namespace Unity.Rendering
             {
                 //using var prof = ProfilerEmitChunk.Auto();
 
-                var entitiesGraphicsChunkInfo = chunk.GetChunkComponentData(EntitiesGraphicsChunkInfo);
+                var entitiesGraphicsChunkInfo = chunk.GetChunkComponentData(ref EntitiesGraphicsChunkInfo);
 
                 if (!entitiesGraphicsChunkInfo.Valid)
                     return;
@@ -1068,9 +1068,9 @@ namespace Unity.Rendering
                     return;
 #endif
 
-                var materialMeshInfos = chunk.GetNativeArray(MaterialMeshInfo);
-                var localToWorlds = chunk.GetNativeArray(LocalToWorld);
-                bool isDepthSorted = chunk.Has(DepthSorted);
+                var materialMeshInfos = chunk.GetNativeArray(ref MaterialMeshInfo);
+                var localToWorlds = chunk.GetNativeArray(ref LocalToWorld);
+                bool isDepthSorted = chunk.Has(ref DepthSorted);
                 bool isLightMapped = chunk.GetSharedComponentIndex(LightMaps) >= 0;
 
                 // Check if the chunk has statically disabled motion (i.e. never in motion pass)
@@ -1082,9 +1082,9 @@ namespace Unity.Rendering
                 if (hasMotion)
                 {
                     bool orderChanged = chunk.DidOrderChange(LastSystemVersion);
-                    bool transformChanged = chunk.DidChange(LocalToWorld, LastSystemVersion);
+                    bool transformChanged = chunk.DidChange(ref LocalToWorld, LastSystemVersion);
 #if ENABLE_DOTS_DEFORMATION_MOTION_VECTORS
-                    bool isDeformed = chunk.Has(DeformedMeshIndex);
+                    bool isDeformed = chunk.Has(ref DeformedMeshIndex);
 #else
                     bool isDeformed = false;
 #endif

@@ -1,29 +1,23 @@
 #if ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER)
 
-using System;
 using Unity.Burst;
-using Unity.Mathematics;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
 using Unity.Jobs;
-using UnityEngine.Rendering;
-using Unity.Transforms;
 using System.Collections.Generic;
-using Unity.Rendering.Occlusion.Masked.Dots;
+using Unity.Rendering.Occlusion.Masked;
 
 
 namespace Unity.Rendering.Occlusion
 {
     [BurstCompile]
-    unsafe struct OcclusionSortMeshesJob : IJob
+    struct OcclusionSortMeshesJob : IJob
     {
-        public NativeArray<OcclusionMesh> Meshes;
+        public NativeArray<ClippedOccluder> ClippedOccluders;
 
 
-        struct Compare : IComparer<OcclusionMesh>
+        struct Compare : IComparer<ClippedOccluder>
         {
-            int IComparer<OcclusionMesh>.Compare(OcclusionMesh x, OcclusionMesh y)
+            int IComparer<ClippedOccluder>.Compare(ClippedOccluder x, ClippedOccluder y)
             {
                 return x.screenMin.z.CompareTo(y.screenMin.z);
             }
@@ -31,11 +25,11 @@ namespace Unity.Rendering.Occlusion
 
         public void Execute()
         {
-            if (Meshes.Length == 0)
+            if (ClippedOccluders.Length == 0)
                 return;
 
             // TODO:  might want to do a proper parallel sort instead
-            Meshes.Sort(new Compare());
+            ClippedOccluders.Sort(new Compare());
         }
     }
 }

@@ -182,9 +182,9 @@ namespace Unity.Rendering
                 // This job is not written to support queries with enableable component types.
                 Assert.IsFalse(useEnabledMask);
 
-                var rootLODRange = chunk.GetNativeArray(RootLODRange);
-                var lodRange = chunk.GetNativeArray(LODRange);
-                var meshLods = chunk.GetNativeArray(MeshLODComponent);
+                var rootLODRange = chunk.GetNativeArray(ref RootLODRange);
+                var lodRange = chunk.GetNativeArray(ref LODRange);
+                var meshLods = chunk.GetNativeArray(ref MeshLODComponent);
                 var instanceCount = chunk.Count;
 
                 for (int i = 0; i < instanceCount; i++)
@@ -241,9 +241,9 @@ namespace Unity.Rendering
                 // This job is not written to support queries with enableable component types.
                 Assert.IsFalse(useEnabledMask);
 
-                var meshLODGroupComponent = chunk.GetNativeArray(MeshLODGroupComponent);
-                var localToWorld = chunk.GetNativeArray(LocalToWorld);
-                var lodGroupWorldReferencePoint = chunk.GetNativeArray(LODGroupWorldReferencePoint);
+                var meshLODGroupComponent = chunk.GetNativeArray(ref MeshLODGroupComponent);
+                var localToWorld = chunk.GetNativeArray(ref LocalToWorld);
+                var lodGroupWorldReferencePoint = chunk.GetNativeArray(ref LODGroupWorldReferencePoint);
                 var instanceCount = chunk.Count;
 
                 for (int i = 0; i < instanceCount; i++)
@@ -266,9 +266,9 @@ namespace Unity.Rendering
                 // This job is not written to support queries with enableable component types.
                 Assert.IsFalse(useEnabledMask);
 
-                var rootLODWorldReferencePoint = chunk.GetNativeArray(RootLODWorldReferencePoint);
-                var lodWorldReferencePoint = chunk.GetNativeArray(LODWorldReferencePoint);
-                var meshLods = chunk.GetNativeArray(MeshLODComponent);
+                var rootLODWorldReferencePoint = chunk.GetNativeArray(ref RootLODWorldReferencePoint);
+                var lodWorldReferencePoint = chunk.GetNativeArray(ref LODWorldReferencePoint);
+                var meshLods = chunk.GetNativeArray(ref MeshLODComponent);
                 var instanceCount = chunk.Count;
 
                 for (int i = 0; i < instanceCount; i++)

@@ -88,8 +88,8 @@ namespace Unity.Rendering
             // This job is not written to support queries with enableable component types.
             Assert.IsFalse(useEnabledMask);
 
-            var entitiesGraphicsChunkInfoArray = archetypeChunk.GetNativeArray(EntitiesGraphicsChunkInfo);
-            var chunkHeaderArray = archetypeChunk.GetNativeArray(ChunkHeader);
+            var entitiesGraphicsChunkInfoArray = archetypeChunk.GetNativeArray(ref EntitiesGraphicsChunkInfo);
+            var chunkHeaderArray = archetypeChunk.GetNativeArray(ref ChunkHeader);
 
 #if UNITY_EDITOR
             ref var stats = ref Stats[ThreadIndex];
@@ -152,10 +152,10 @@ namespace Unity.Rendering
 #endif
                         var chunk = chunkHeader.ArchetypeChunk;
 
-                        var rootLODRanges = chunk.GetNativeArray(RootLODRanges);
-                        var rootLODReferencePoints = chunk.GetNativeArray(RootLODReferencePoints);
-                        var lodRanges = chunk.GetNativeArray(LODRanges);
-                        var lodReferencePoints = chunk.GetNativeArray(LODReferencePoints);
+                        var rootLODRanges = chunk.GetNativeArray(ref RootLODRanges);
+                        var rootLODReferencePoints = chunk.GetNativeArray(ref RootLODReferencePoints);
+                        var lodRanges = chunk.GetNativeArray(ref LODRanges);
+                        var lodReferencePoints = chunk.GetNativeArray(ref LODReferencePoints);
 
                         float graceDistance = float.MaxValue;
 
@@ -649,11 +649,11 @@ namespace Unity.Rendering
 
             bool isLightCulling = CullingViewType == BatchCullingViewType.Light;
 
-            var entitiesGraphicsChunkInfo = chunk.GetChunkComponentData(EntitiesGraphicsChunkInfo);
+            var entitiesGraphicsChunkInfo = chunk.GetChunkComponentData(ref EntitiesGraphicsChunkInfo);
             if (!entitiesGraphicsChunkInfo.Valid)
                 return;
 
-            var chunkBounds = chunk.GetChunkComponentData(ChunkWorldRenderBounds);
+            var chunkBounds = chunk.GetChunkComponentData(ref ChunkWorldRenderBounds);
 
 #if UNITY_EDITOR
             ref var stats = ref Stats[ThreadIndex];
@@ -722,7 +722,7 @@ namespace Unity.Rendering
 #if UNITY_EDITOR
                 int instanceTestCount = 0;
 #endif
-                var chunkInstanceBounds = chunk.GetNativeArray(BoundsComponent);
+                var chunkInstanceBounds = chunk.GetNativeArray(ref BoundsComponent);
                 var chunkEntities = chunk.GetNativeArray(EntityHandle);
 
                 for (int j = 0; j < 2; j++)
@@ -806,7 +806,7 @@ namespace Unity.Rendering
 
             ref var splits = ref Splits.Splits;
 
-            var worldRenderBounds = chunk.GetNativeArray(BoundsComponent);
+            var worldRenderBounds = chunk.GetNativeArray(ref BoundsComponent);
 
             // First, perform frustum and receiver plane culling for all splits
             for (int splitIndex = 0; splitIndex < splits.Length; ++splitIndex)

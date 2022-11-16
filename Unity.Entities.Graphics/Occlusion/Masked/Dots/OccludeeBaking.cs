@@ -13,7 +13,7 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
     {
     }
 
-    public class OccludeeBaker : Baker<MeshRenderer>
+    class OccludeeBaker : Baker<MeshRenderer>
     {
         public override void Bake(MeshRenderer authoring)
         {
@@ -132,7 +132,7 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                 for (int j = 0; j < children.Length; j++)
                 {
                     var child = children[j].Value;
-                    if (HasComponent<RenderBounds>(child))
+                    if (SystemAPI.HasComponent<RenderBounds>(child))
                     {
                         ecb.AddComponent(child, new OcclusionTest(true));
                     }

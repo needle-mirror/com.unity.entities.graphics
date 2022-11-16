@@ -26,8 +26,8 @@ namespace Unity.Rendering
                 // This job is not written to support queries with enableable component types.
                 Assert.IsFalse(useEnabledMask);
 
-                var chunkLocalToWorld = chunk.GetNativeArray(LocalToWorldTypeHandle);
-                var chunkMatrixPrevious = chunk.GetNativeArray(MatrixPreviousTypeHandle);
+                var chunkLocalToWorld = chunk.GetNativeArray(ref LocalToWorldTypeHandle);
+                var chunkMatrixPrevious = chunk.GetNativeArray(ref MatrixPreviousTypeHandle);
                 for (int i = 0, chunkEntityCount = chunk.Count; i < chunkEntityCount; i++)
                 {
                     var localToWorld = chunkLocalToWorld[i].Value;
@@ -39,6 +39,12 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnCreate()
         {
+            if (!EntitiesGraphicsSystem.EntitiesGraphicsEnabled)
+            {
+                Enabled = false;
+                return;
+            }
+
             m_GroupPrev = GetEntityQuery(new EntityQueryDesc
             {
                 All = new ComponentType[]
@@ -58,9 +64,6 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnUpdate()
         {
-            if (!EntitiesGraphicsSystem.EntitiesGraphicsEnabled)
-                return;
-
             var updateMatrixPreviousJob = new UpdateMatrixPrevious
             {
                 LocalToWorldTypeHandle = GetComponentTypeHandle<LocalToWorld>(true),

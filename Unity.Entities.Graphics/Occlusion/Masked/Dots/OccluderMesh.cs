@@ -2,33 +2,13 @@
 
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Rendering;
 
 namespace Unity.Rendering.Occlusion.Masked.Dots
 {
-    public struct OccluderMeshComponent : IComponentData, System.IEquatable<OccluderMeshComponent>
-    {
-        public BlobAssetReference<float3> vertexData;
-        public BlobAssetReference<int> indexData;
-        public int vertexCount;
-        public int indexCount;
-
-
-        public bool Equals(OccluderMeshComponent other)
-        {
-            return (vertexData.GetHashCode() == other.vertexData.GetHashCode() && indexData.GetHashCode() == other.indexData.GetHashCode());
-        }
-
-        public override int GetHashCode()
-        {
-            return vertexData.GetHashCode() ^ indexData.GetHashCode();
-        }
-    }
-
-    public struct OcclusionMesh : IComponentData
+    struct OcclusionMesh : IComponentData
     {
         const float EPSILON = 1E-12f;
         enum ClipPlanes
@@ -43,62 +23,27 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
             CLIP_PLANE_ALL = (CLIP_PLANE_LEFT | CLIP_PLANE_RIGHT | CLIP_PLANE_BOTTOM | CLIP_PLANE_TOP | CLIP_PLANE_NEAR)
         };
 
-        unsafe public OcclusionMesh(ref OccluderMeshComponent sharedMesh, Occluder occluder)
+        public unsafe void Transform(float4x4 mvp, BatchCullingProjectionType projectionType, float nearClip,
+            v128* frustumPlanes, float halfWidth, float halfHeight, float pixelCenterX, float pixelCenterY,
+            float4* transformedVerts,
+            NativeArray<float3> clippedVerts,
+            NativeArray<float4> clippedTriExtents,
+            ClippedOccluder* clipped
+            )
         {
-            // this is unused, it requires assignments for compilation but OccluderBaking.cs is where it's created
-            vertexCount = sharedMesh.vertexCount;
-            indexCount = sharedMesh.indexCount;
-            vertexData = sharedMesh.vertexData;
-            indexData = sharedMesh.indexData;
+            clipped->expandedVertexSize = 0;
+            clipped->screenMin = float.MaxValue;
+            clipped->screenMax = -float.MaxValue;
 
-            int size = UnsafeUtility.SizeOf<float>() * indexCount * 6; // multiplied by 6 as the expansion of 1 + up to 5 triangles after clipping
-            var data = Memory.Unmanaged.Allocate(size, 64, Allocator.Persistent);
-            vertex_x = BlobAssetReference<float>.Create(data, size);
-
-            data = Memory.Unmanaged.Allocate(size, 64, Allocator.Persistent);
-            vertex_y = BlobAssetReference<float>.Create(data, size);
-
-            data = Memory.Unmanaged.Allocate(size, 64, Allocator.Persistent);
-            vertex_w = BlobAssetReference<float>.Create(data, size);
-
-            size = UnsafeUtility.SizeOf<float2>() * indexCount/3 * 6;
-            data = Memory.Unmanaged.Allocate(size, 64, Allocator.Persistent);
-            triangle_min = BlobAssetReference<float2>.Create(data, size);
-
-            data = Memory.Unmanaged.Allocate(size, 64, Allocator.Persistent);
-            triangle_max = BlobAssetReference<float2>.Create(data, size);
-            
-            size = UnsafeUtility.SizeOf<float4>() * vertexCount;
-            data = Memory.Unmanaged.Allocate(size, 64, Allocator.Persistent);
-            transformedVertexData = BlobAssetReference<float4>.Create(data, size);
-
-            expandedVertexSize = 0;
-
-            screenMin = float.MaxValue;
-            screenMax = -float.MaxValue;
-
-            // Compute the full 4x4 matrix. The last row will always be (0, 0, 0, 1). We discard this row to reduce
-            // memory bandwidth and then reconstruct it later while transforming the occluders.
-            float4x4 mtx = float4x4.TRS(occluder.localPosition, occluder.localRotation, occluder.localScale);
-            localTransform = new float3x4(mtx.c0.xyz, mtx.c1.xyz, mtx.c2.xyz, mtx.c3.xyz);
-        }
-        
-        public unsafe void Transform(float4x4 MVP, BatchCullingProjectionType projectionType, float NearClip, v128* FrustumPlanes, float HalfWidth, float HalfHeight, float PixelCenterX, float PixelCenterY)
-        {
-
-            screenMin = float.MaxValue;
-            screenMax = -float.MaxValue;
             float3* vin = (float3*)vertexData.GetUnsafePtr();
-            float4* vout = (float4*)transformedVertexData.GetUnsafePtr();
+            float4* vout = transformedVerts;
 
-            float clipW = NearClip;
+            float clipW = nearClip;
             int numVertsBehindNearPlane = 0;
-
-            expandedVertexSize = 0;
 
             for (int i = 0; i < vertexCount; ++i, ++vin, ++vout)
             {
-                *vout = math.mul(MVP, new float4(*vin, 1.0f));
+                *vout = math.mul(mvp, new float4(*vin, 1.0f));
                 vout->y = -vout->y;
 
                 float4 p = vout->xyzw;
@@ -117,25 +62,20 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                     p.xyz /= p.w;
                 }
                 p.y *= -1.0f;
-                screenMin = math.min(screenMin, p);
-                screenMax = math.max(screenMax, p);
+                clipped->screenMin = math.min(clipped->screenMin, p);
+                clipped->screenMax = math.max(clipped->screenMax, p);
             }
             // if all triangles are behind the near plane we can stop it now
             if (numVertsBehindNearPlane == vertexCount)
                 return;
 
             // compute the expanded data, after transforming the vertices the triangle is check if it faces the camera
-            vout = (float4*)transformedVertexData.GetUnsafePtr();
+            vout = transformedVerts;
             int* indexPtr = (int*)indexData.GetUnsafePtr();
 
             float3x3* vertices = stackalloc float3x3[6];// 1 + 5 planes triangles that can be generated
-            float2* max_out = (float2*)triangle_max.GetUnsafePtr();
-            float2* min_out = (float2*)triangle_min.GetUnsafePtr();
-            float* v_x = (float*)vertex_x.GetUnsafePtr();
-            float* v_y = (float*)vertex_y.GetUnsafePtr();
-            float* v_w = (float*)vertex_w.GetUnsafePtr();
 
-            const int singleBufferSize = 3 + 5;// 3 vertex + 5 planes = 8 maximum generated vertices per a triangle + 5 clipping planes 
+            const int singleBufferSize = 3 + 5;// 3 vertex + 5 planes = 8 maximum generated vertices per a triangle + 5 clipping planes
             const int doubleBufferSize = singleBufferSize * 2;
             float3* vertexClipBuffer = stackalloc float3[doubleBufferSize];
 
@@ -158,11 +98,11 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                     vertices[0][1] = vout[indexPtr[i + 1]].xyw;
                     vertices[0][2] = vout[indexPtr[i + 2]].xyw;
                 }
-                
+
                 // buffer group have guardBand that adds extra padding to avoid clipping triangles on the sides
                 // Test clipping simply checks that the projected triangles are inside the frustum exploiting
                 // the checks against the w or z depending if it's orthographic or perspective projection
-                ClippingTestResult clippingTestResult = TestClipping(vertices[0], NearClip, projectionType == BatchCullingProjectionType.Orthographic);
+                ClippingTestResult clippingTestResult = TestClipping(vertices[0], nearClip, projectionType == BatchCullingProjectionType.Orthographic);
                 // If the whole triangle is outside the clipping bounds, then it is discarded entirely. We just skip to
                 // the next triangle.
                 if (clippingTestResult == ClippingTestResult.Outside) continue;
@@ -189,7 +129,7 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                         // swapping buffers from input output, the algorithm works by clipping every plane once at a time
                         float3* outVtx = vertexClipBuffer + ((bufferSwap ^ 1) * singleBufferSize);
                         float3* inVtx = vertexClipBuffer + (bufferSwap * singleBufferSize);
-                        float4 plane = new float4(FrustumPlanes[n].Float0, FrustumPlanes[n].Float1, FrustumPlanes[n].Float2, FrustumPlanes[n].Float3);
+                        float4 plane = new float4(frustumPlanes[n].Float0, frustumPlanes[n].Float1, frustumPlanes[n].Float2, frustumPlanes[n].Float3);
                         nClippedVerts = ClipPolygon(outVtx, inVtx, plane, nClippedVerts);
                         // Toggle between 0 and 1
                         bufferSwap ^= 1;
@@ -203,7 +143,7 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                      *    |  \
                      *    |   \
                      *    x-_  \
-                     *       `-_\  <------if the clipping plane is here it will add 2 vertex producing 
+                     *       `-_\  <------if the clipping plane is here it will add 2 vertex producing
                      *          `x
                      *
                      *     x
@@ -212,16 +152,16 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                      *     |  \
                      *     |   \   <------X are the new added vertices and the final result will be
                      *     x-_  \
-                     *        `X_X 
+                     *        `X_X
                      *           `x
-                     *                                
+                     *
                      *     x
                      *     |\
                      *     |.\
                      *     | :\
                      *     | \ \   <------X are the new added vertices and the final result will be the extra edges cutting from the the first vertex to the new ones and between the added ones
                      *     x-_\ \
-                     *        `X-X 
+                     *        `X-X
                      *
                      */
                     if (nClippedVerts >= 3)
@@ -232,7 +172,7 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                         vertices[0][2] = vertexClipBuffer[bufferSwap * singleBufferSize + 2];
 
                         numTriangles++;
-                
+
                         for (int n = 2; n < nClippedVerts - 1; n++)
                         {
                             // ^ If we have more than 3 vertices after clipping, create a triangle-fan, with the 0th
@@ -243,15 +183,15 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                             numTriangles++;
                         }
                     }
-                
+
                 }
-                
+
                 for(int n = 0; n < numTriangles; ++n)
                 {
                     int2x3 intHomogeneousVertices = int2x3.zero;
                     float2x3 homogeneousVertices = float2x3.zero;
-                    float2 halfRes = new float2(HalfWidth, HalfHeight);
-                    float2 pixelCenter = new float2(PixelCenterX, PixelCenterY);
+                    float2 halfRes = new float2(halfWidth, halfHeight);
+                    float2 pixelCenter = new float2(pixelCenterX, pixelCenterY);
                     if (projectionType == BatchCullingProjectionType.Orthographic)
                     {
                         homogeneousVertices[0] = (vertices[0][0].xy * halfRes) + pixelCenter;
@@ -292,7 +232,7 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                     }
 
                     // Checkin determinant > 0 more details in:
-                    // Triangle Scan Conversion using 2D Homogeneous Coordinates 
+                    // Triangle Scan Conversion using 2D Homogeneous Coordinates
                     // https://www.cs.cmu.edu/afs/cs/academic/class/15869-f11/www/readings/olano97_homogeneous.pdf
                     // Section 5.2
                     // In 3D, a matrix determinant gives twice the signed volume of a tetrahedron.In
@@ -321,21 +261,21 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                         homogeneousVertices[1].y *= -1.0f;
                         homogeneousVertices[2].y *= -1.0f;
 
-                        max_out[expandedVertexSize/3] = math.max(math.max(homogeneousVertices[0], homogeneousVertices[1]), homogeneousVertices[2]);
-                        min_out[expandedVertexSize/3] = math.min(math.min(homogeneousVertices[0], homogeneousVertices[1]), homogeneousVertices[2]);
+                        clippedTriExtents[clipped->sourceIndexOffset * 2 + clipped->expandedVertexSize / 3] = new float4(
+                            math.min(math.min(homogeneousVertices[0], homogeneousVertices[1]), homogeneousVertices[2]),
+                            math.max(math.max(homogeneousVertices[0], homogeneousVertices[1]), homogeneousVertices[2])
+                        );
                         // Copy final vertex data into output arrays
                         for (int m = 0; m < 3; ++m)
                         {
-                            v_x[expandedVertexSize] = vertices[n][m].x;
-                            v_y[expandedVertexSize] = vertices[n][m].y;
-                            v_w[expandedVertexSize] = vertices[n][m].z;
-                            expandedVertexSize++;
+                            clippedVerts[clipped->sourceIndexOffset * 6 + clipped->expandedVertexSize] = vertices[n][m];
+                            clipped->expandedVertexSize++;
                         }
                     }
                 }
             }
             // If fully visible we can skip computing the screen aabb again but with the extra clipping logic
-            if (numVertsBehindNearPlane == 0 && !(screenMin.x > 1.0f || screenMin.y > 1.0f || screenMax.x < -1.0f || screenMax.y < -1.0f))
+            if (numVertsBehindNearPlane == 0 && !(clipped->screenMin.x > 1.0f || clipped->screenMin.y > 1.0f || clipped->screenMax.x < -1.0f || clipped->screenMax.y < -1.0f))
                 return;
 
             if (numVertsBehindNearPlane == 0 || numVertsBehindNearPlane == vertexCount)// if triangles does not cross near plane we can skip the slow path too
@@ -367,13 +307,13 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
 
             var verts = stackalloc float4[16];
 
-            float4x2 u = new float4x2(MVP.c0 * aabb.Min.x, MVP.c0 * aabb.Max.x);
-            float4x2 v = new float4x2(MVP.c1 * aabb.Min.y, MVP.c1 * aabb.Max.y);
-            float4x2 w = new float4x2(MVP.c2 * aabb.Min.z, MVP.c2 * aabb.Max.z);
+            float4x2 u = new float4x2(mvp.c0 * aabb.Min.x, mvp.c0 * aabb.Max.x);
+            float4x2 v = new float4x2(mvp.c1 * aabb.Min.y, mvp.c1 * aabb.Max.y);
+            float4x2 w = new float4x2(mvp.c2 * aabb.Min.z, mvp.c2 * aabb.Max.z);
 
             for (int corner = 0; corner < 8; corner++)
             {
-                float4 p = u[corner & 1] + v[(corner & 2) >> 1] + w[(corner & 4) >> 2] + MVP.c3;
+                float4 p = u[corner & 1] + v[(corner & 2) >> 1] + w[(corner & 4) >> 2] + mvp.c3;
                 p.y = -p.y;
                 verts[corner] = p;
             }
@@ -408,8 +348,8 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                     p.xyz /= p.w;
                 }
                 p.y *= -1.0f;
-                screenMin = math.min(screenMin, p);
-                screenMax = math.max(screenMax, p);
+                clipped->screenMin = math.min(clipped->screenMin, p);
+                clipped->screenMax = math.max(clipped->screenMax, p);
             }
         }
 
@@ -510,7 +450,7 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                 float3 p1 = inVtx[k];
                 float dist1 = math.dot(p1, plane.xyz) + plane.w;
 
-                if (dist0 > EPSILON) 
+                if (dist0 > EPSILON)
                 {
                     outVtx[nout++] = p0;
                 }
@@ -541,29 +481,9 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
         public int vertexCount;
         public int indexCount;
 
-        public BlobAssetReference<float4> transformedVertexData;
         public BlobAssetReference<float3> vertexData;
         public BlobAssetReference<int> indexData;
 
-        public BlobAssetReference<float> vertex_x;
-        public BlobAssetReference<float> vertex_y;
-        public BlobAssetReference<float> vertex_w;
-        // Triangle min max contains the screen space aabb of the triangles
-        // to not recompute it for each bin in the rasterize job
-        // Used to classify triangles by bins
-        public BlobAssetReference<float2> triangle_min;
-        public BlobAssetReference<float2> triangle_max;
-
-        // If a triangle intersects the frustum, it needs to be clipped. The
-        // process of clipping converts the triangle into a non-triangular
-        // polygon with more vertices. Up to 5 new vertices can be added in this
-        // process, depending on how the triangle intersects the frustum. We
-        // allocate a large enough vertex buffer to be able to fit all the
-        // vertices, and we track how many vertices are actually generated after
-        // clipping in this variable.
-        public int expandedVertexSize;
-
-        public float4 screenMin, screenMax;
         public float3x4 localTransform;
     }
 }

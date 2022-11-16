@@ -1,12 +1,13 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.0.0-exp.14",
+  "version": "1.0.0-pre.15",
   "unity": "2022.2",
-  "unityRelease": "0b5",
+  "unityRelease": "0f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.0.0-exp.12",
+    "com.unity.entities": "1.0.0-pre.15",
+    "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.3"
   },
   "keywords": [
@@ -16,11 +17,11 @@
     "unity"
   ],
   "upmCi": {
-    "footprint": "a207635f6c052f635a398e63b79f78138871e5a7"
+    "footprint": "570c3cbc27016e27affe6689bd55ea9265069836"
   },
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "3f0a7e39227bd97f1239a6505a9449425fecfe1e"
+    "revision": "82387d7cb4bc4aee07e94656ef8103860ef6ec55"
   }
 }

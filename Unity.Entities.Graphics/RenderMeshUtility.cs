@@ -204,74 +204,6 @@ namespace Unity.Rendering
         /// <param name="entity">The entity to set the component values for.</param>
         /// <param name="entityManager">The <see cref="EntityManager"/> used to set the component values.</param>
         /// <param name="renderMeshDescription">The description that determines how the entity is to be rendered.</param>
-        /// <param name="renderMesh">The description that determines how the entity is to be rendered.</param>
-        /// <example><code>
-        /// void CodeExample()
-        /// {
-        ///     var world = World.DefaultGameObjectInjectionWorld;
-        ///     var entityManager = world.EntityManager;
-        ///
-        ///     var desc = new RenderMeshDescription(
-        ///         Mesh,
-        ///         Material
-        ///     );
-        ///
-        ///     // RenderMeshUtility can be used to easily create Entities Graphics
-        ///     // compatible entities, but it can only be called from the main thread.
-        ///     var entity = entityManager.CreateEntity();
-        ///     RenderMeshUtility.AddComponents(
-        ///         entity,
-        ///         entityManager,
-        ///         desc,
-        ///         renderMesh);
-        ///     entityManager.AddComponentData(entity, new ExampleComponent());
-        ///
-        ///     // If multiple similar entities are to be created, 'entity' can now
-        ///     // be instantiated using Instantiate(), and its component values changed
-        ///     // afterwards.
-        ///     // This can also be done in Burst jobs using EntityCommandBuffer.ParallelWriter.
-        ///     var secondEntity = entityManager.Instantiate(entity);
-        ///     entityManager.SetComponentData(secondEntity, new Translation {Value = new float3(1, 2, 3)});
-        /// }
-        /// </code></example>
-        public static void AddComponents(
-            Entity entity,
-            EntityManager entityManager,
-            in RenderMeshDescription renderMeshDescription,
-            RenderMesh renderMesh)
-        {
-#if UNITY_EDITOR
-            // Skip the validation check in the player to minimize overhead.
-            if (!ValidateMesh(renderMesh))
-                return;
-#endif
-            // Entities with Static are never rendered with motion vectors
-            bool inMotionPass = kUseHybridMotionPass &&
-                                renderMeshDescription.FilterSettings.IsInMotionPass &&
-                                !entityManager.HasComponent<Static>(entity);
-
-            EntitiesGraphicsComponentFlags flags = EntitiesGraphicsComponentFlags.GameObjectConversion;
-            if (inMotionPass) flags |= EntitiesGraphicsComponentFlags.InMotionPass;
-            flags |= LightProbeFlags(renderMeshDescription.LightProbeUsage);
-            flags |= DepthSortedFlags(renderMesh.material);
-
-            // Add all components up front using as few calls as possible.
-            entityManager.AddComponent(entity, s_EntitiesGraphicsComponentTypes.GetComponentTypes(flags));
-
-            entityManager.SetSharedComponentManaged(entity, renderMesh);
-            entityManager.SetSharedComponentManaged(entity, renderMeshDescription.FilterSettings);
-
-            var localBounds = renderMesh.mesh.bounds.ToAABB();
-            entityManager.SetComponentData(entity, new RenderBounds { Value = localBounds });
-        }
-
-        /// <summary>
-        /// Set the Entities Graphics component values to render the given entity using the given description.
-        /// Any missing components will be added, which results in structural changes.
-        /// </summary>
-        /// <param name="entity">The entity to set the component values for.</param>
-        /// <param name="entityManager">The <see cref="EntityManager"/> used to set the component values.</param>
-        /// <param name="renderMeshDescription">The description that determines how the entity is to be rendered.</param>
         /// <param name="renderMeshArray">The instance of the RenderMeshArray which contains mesh and material.</param>
         /// <param name="materialMeshInfo">The MaterialMeshInfo used to index into renderMeshArray.</param>
         public static void AddComponents(
@@ -317,7 +249,7 @@ namespace Unity.Rendering
                 return EntitiesGraphicsComponentFlags.None;
         }
 
-        
+
         /// <summary>
         /// Return true if the given <see cref="Material"/> is known to be transparent. Works
         /// for materials that use HDRP or URP conventions for transparent materials.

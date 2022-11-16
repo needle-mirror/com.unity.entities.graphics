@@ -1,5 +1,3 @@
-#if ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER)
-
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -18,6 +16,7 @@ namespace Unity.Rendering.Occlusion
         [FormerlySerializedAs("relativeScale")]
         public Vector3 localScale = Vector3.one;
 
+#if ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER)
         void Reset()
         {
             if (gameObject.TryGetComponent<MeshFilter>(out var meshFilter))
@@ -53,7 +52,7 @@ namespace Unity.Rendering.Occlusion
             Gizmos.DrawWireMesh(mesh);
             Gizmos.matrix = mtx;
         }
+#endif
     }
 }
 
-#endif

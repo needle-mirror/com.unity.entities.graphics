@@ -1,18 +1,13 @@
 #if UNITY_EDITOR && ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER)
 
-using System;
-using System.Collections.Generic;
-using Unity.Mathematics;
 using UnityEditor;
-using UnityEditor.EditorTools;
-using UnityEditor.IMGUI.Controls;
 using UnityEngine;
 
 namespace Unity.Rendering.Occlusion
 {
     [CustomEditor(typeof(Occluder))]
     [CanEditMultipleObjects]
-    internal class OccluderInspector : Editor
+    class OccluderInspector : Editor
     {
 
         class Contents

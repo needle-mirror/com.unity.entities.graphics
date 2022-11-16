@@ -3,6 +3,26 @@ uid: changelog
 ---
 # Changelog
 
+## [1.0.0-pre.15] - 2022-11-16
+
+### Added
+
+* Burst Occlusion Culling occlusion browser tool
+
+### Removed
+
+* Removing dependencies on `com.unity.jobs` package.
+* Removed confusing RenderMesh overload of RenderMeshUtility.AddComponents, which does not do anything in Entities 1.0.
+
+### Fixed
+
+* Directional shadow caster culling false negatives.
+* Make OnPerformCulling private
+* Fixed a NullPointerException when running with -nographics or unsupported platform.
+* Blend shapes not working on certain GPUs.
+* Improved error behavior when null Meshes or Materials are used with Entities.
+
+
 ## [1.0.0-exp.14] - 2022-10-19
 
 
@@ -16,8 +36,6 @@ uid: changelog
 
 * Fixed a bug in the BatchingBenchmark sample scene where it would only spawn entities the first time it was dynamically loaded.
 * Fixed an issue where Entities Graphics would cause issues with the device being able to idle.
-
-
 
 
 ## [1.0.0-exp.8] - 2022-09-21
@@ -52,9 +70,6 @@ uid: changelog
 * Mesh and material indices not updating correctly if entity was created ad disabled and later enabled.
 * Improved multi threaded load balancing of the Entities Graphics frustum culling Burst job
 * Guard against overflow of static readonly int k_MaxSize for the deformation buffers.
-
-
-
 
 ## [0.14.0] - 2021-09-17
 

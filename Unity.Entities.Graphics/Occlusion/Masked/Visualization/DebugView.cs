@@ -23,7 +23,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
 
        A debug view is allocated only when a debug visualization is requested by the user. Otherwise no memory is
        allocated for debug purposes. */
-    public unsafe class DebugView
+    unsafe class DebugView
     {
         static readonly int s_DepthPropertyID = Shader.PropertyToID("_Depth");
         static readonly int s_OverlayPropertyID = Shader.PropertyToID("_Overlay");
@@ -103,6 +103,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
                     Object.DestroyImmediate(gpuDepth);
                 }
                 gpuDepth = new Texture2D(viewWidth, viewHeight, TextureFormat.RFloat, false);
+                gpuDepth.filterMode = FilterMode.Point;
                 m_CompositeMaterial.SetTexture(s_DepthPropertyID, gpuDepth);
             }
             // Reallocate overlay texture if needed
