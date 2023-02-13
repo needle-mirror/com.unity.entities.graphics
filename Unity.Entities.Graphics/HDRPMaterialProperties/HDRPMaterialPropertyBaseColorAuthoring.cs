@@ -10,10 +10,7 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class HDRPMaterialPropertyBaseColorAuthoring : UnityEngine.MonoBehaviour
     {
-        [RegisterBinding(typeof(HDRPMaterialPropertyBaseColor), "Value.x", true)]
-        [RegisterBinding(typeof(HDRPMaterialPropertyBaseColor), "Value.y", true)]
-        [RegisterBinding(typeof(HDRPMaterialPropertyBaseColor), "Value.z", true)]
-        [RegisterBinding(typeof(HDRPMaterialPropertyBaseColor), "Value.w", true)]
+        [RegisterBinding(typeof(HDRPMaterialPropertyBaseColor), nameof(HDRPMaterialPropertyBaseColor.Value))]
         public float4 Value;
 
         class HDRPMaterialPropertyBaseColorBaker : Baker<HDRPMaterialPropertyBaseColorAuthoring>

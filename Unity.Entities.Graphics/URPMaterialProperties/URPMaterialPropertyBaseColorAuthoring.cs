@@ -13,18 +13,20 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class URPMaterialPropertyBaseColorAuthoring : UnityEngine.MonoBehaviour
     {
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyBaseColor), "Value.x", true)]
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyBaseColor), "Value.y", true)]
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyBaseColor), "Value.z", true)]
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyBaseColor), "Value.w", true)]
-        public Unity.Mathematics.float4 Value;
+        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyBaseColor), nameof(URPMaterialPropertyBaseColor.Value))]
+        public UnityEngine.Color color;
 
         class URPMaterialPropertyBaseColorBaker : Unity.Entities.Baker<URPMaterialPropertyBaseColorAuthoring>
         {
             public override void Bake(URPMaterialPropertyBaseColorAuthoring authoring)
             {
                 Unity.Rendering.URPMaterialPropertyBaseColor component = default(Unity.Rendering.URPMaterialPropertyBaseColor);
-                component.Value = authoring.Value;
+                float4 colorValues;
+                colorValues.x = authoring.color.linear.r;
+                colorValues.y = authoring.color.linear.g;
+                colorValues.z = authoring.color.linear.b;
+                colorValues.w = authoring.color.linear.a;
+                component.Value = colorValues;
                 AddComponent(component);
             }
         }

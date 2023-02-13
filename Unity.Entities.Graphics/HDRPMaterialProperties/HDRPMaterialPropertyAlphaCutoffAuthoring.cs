@@ -9,7 +9,7 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class HDRPMaterialPropertyAlphaCutoffAuthoring : UnityEngine.MonoBehaviour
     {
-        [RegisterBinding(typeof(HDRPMaterialPropertyAlphaCutoff), "Value")]
+        [RegisterBinding(typeof(HDRPMaterialPropertyAlphaCutoff), nameof(HDRPMaterialPropertyAlphaCutoff.Value))]
         public float Value;
 
         class HDRPMaterialPropertyAlphaCutoffBaker : Baker<HDRPMaterialPropertyAlphaCutoffAuthoring>

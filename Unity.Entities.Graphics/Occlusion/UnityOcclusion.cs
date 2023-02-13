@@ -414,6 +414,14 @@ namespace Unity.Rendering.Occlusion
                 }
                 else
                 {
+#if UNITY_EDITOR
+                    if (bufferGroup.NumPixelsX != occlusionView.OcclusionBufferWidth ||
+                        bufferGroup.NumPixelsY != occlusionView.OcclusionBufferHeight)
+                    {
+                        OcclusionBrowseWindow.Refresh();
+                    }
+#endif
+
                     bufferGroup.SetResolutionAndClip(
                         (int)occlusionView.OcclusionBufferWidth,
                         (int)occlusionView.OcclusionBufferHeight,

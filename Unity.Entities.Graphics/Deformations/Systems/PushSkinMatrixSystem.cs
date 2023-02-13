@@ -36,6 +36,49 @@ namespace Unity.Rendering
             );
         }
 
+        [WithAll(typeof(SharedMeshTracker))]
+        partial struct ConstructHashMapJob : IJobEntity
+        {
+            public NativeParallelMultiHashMap<Entity, int>.ParallelWriter DeformedEntityToComputeIndexParallel;
+
+            private void Execute(in SkinMatrixBufferIndex index, in DeformedEntity deformedEntity)
+            {
+                // Skip if we have an invalid index.
+                if (index.Value == SkinMatrixBufferIndex.Null)
+                    return;
+
+                DeformedEntityToComputeIndexParallel.Add(deformedEntity.Value, index.Value);
+            }
+        }
+
+        partial struct CopySkinMatricesToGPUJob : IJobEntity
+        {
+            [ReadOnly] public NativeParallelMultiHashMap<Entity, int> DeformedEntityToComputeIndex;
+            [NativeDisableContainerSafetyRestriction] public NativeArray<float3x4> SkinMatricesBuffer;
+
+            private void Execute(in DynamicBuffer<SkinMatrix> skinMatrices, in Entity entity)
+            {
+                // Not all deformed entities in the world will have a renderer attached to them.
+                if (!DeformedEntityToComputeIndex.ContainsKey(entity))
+                    return;
+
+                long length = (long)skinMatrices.Length * UnsafeUtility.SizeOf<float3x4>();
+                var indices = DeformedEntityToComputeIndex.GetValuesForKey(entity);
+
+                foreach (var index in indices)
+                {
+                    unsafe
+                    {
+                        UnsafeUtility.MemCpy(
+                            (float3x4*)SkinMatricesBuffer.GetUnsafePtr() + index,
+                            skinMatrices.GetUnsafeReadOnlyPtr(),
+                            length
+                        );
+                    }
+                }
+            }
+        }
+
         protected override void OnUpdate()
         {
             if (m_PushMeshDataSystem.SkinMatrixCount == 0)
@@ -43,47 +86,19 @@ namespace Unity.Rendering
 
             k_Marker.Begin();
 
-            var deformedEntityToComputeIndex = new NativeMultiHashMap<Entity, int>(m_SkinningEntityQuery.CalculateEntityCount(), Allocator.TempJob);
+            var deformedEntityToComputeIndex = new NativeParallelMultiHashMap<Entity, int>(m_SkinningEntityQuery.CalculateEntityCount(), Allocator.TempJob);
             var deformedEntityToComputeIndexParallel = deformedEntityToComputeIndex.AsParallelWriter();
-
-            Dependency = Entities
-                .WithName("ConstructHashMap")
-                .WithAll<SharedMeshTracker>()
-                .ForEach((in SkinMatrixBufferIndex index, in DeformedEntity deformedEntity) =>
-                {
-                    // Skip if we have an invalid index.
-                    if (index.Value == SkinMatrixBufferIndex.Null)
-                        return;
-
-                    deformedEntityToComputeIndexParallel.Add(deformedEntity.Value, index.Value);
-                }).ScheduleParallel(Dependency);
+            Dependency = new ConstructHashMapJob
+            {
+                DeformedEntityToComputeIndexParallel = deformedEntityToComputeIndexParallel
+            }.ScheduleParallel(Dependency);
 
             var skinMatricesBuffer = m_PushMeshDataSystem.SkinningBufferManager.LockSkinMatrixBufferForWrite(m_PushMeshDataSystem.SkinMatrixCount);
-            Dependency = Entities
-                .WithName("CopySkinMatricesToGPU")
-                .WithNativeDisableContainerSafetyRestriction(skinMatricesBuffer)
-                .WithReadOnly(deformedEntityToComputeIndex)
-                .ForEach((ref DynamicBuffer<SkinMatrix> skinMatrices, in Entity entity) =>
-                {
-                    // Not all deformed entities in the world will have a renderer attached to them.
-                    if (!deformedEntityToComputeIndex.ContainsKey(entity))
-                        return;
-
-                    long length = (long)skinMatrices.Length * UnsafeUtility.SizeOf<float3x4>();
-                    var indices = deformedEntityToComputeIndex.GetValuesForKey(entity);
-
-                    foreach (var index in indices)
-                    {
-                        unsafe
-                        {
-                            UnsafeUtility.MemCpy(
-                                (float3x4*)skinMatricesBuffer.GetUnsafePtr() + index,
-                                skinMatrices.GetUnsafePtr(),
-                                length
-                            );
-                        }
-                    }
-                }).ScheduleParallel(Dependency);
+            Dependency = new CopySkinMatricesToGPUJob()
+            {
+                DeformedEntityToComputeIndex = deformedEntityToComputeIndex,
+                SkinMatricesBuffer = skinMatricesBuffer
+            }.ScheduleParallel(Dependency);
 
             Dependency = deformedEntityToComputeIndex.Dispose(Dependency);
 

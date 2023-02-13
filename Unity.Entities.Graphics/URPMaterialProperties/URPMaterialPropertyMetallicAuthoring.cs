@@ -12,7 +12,8 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class URPMaterialPropertyMetallicAuthoring : UnityEngine.MonoBehaviour
     {
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyMetallic), "Value")]
+        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyMetallic), nameof(URPMaterialPropertyMetallic.Value))]
+        [UnityEngine.Range(0,1)]
         public float Value;
 
         class URPMaterialPropertyMetallicBaker : Unity.Entities.Baker<URPMaterialPropertyMetallicAuthoring>

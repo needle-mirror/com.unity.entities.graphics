@@ -8,8 +8,8 @@ When you clone the Project's repository, make sure to use git or a git client. T
 
 The Entities Graphics sample projects can be found at:
 
-- **HDRP**: [HybridHDRPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridHDRPSamples)
-- **URP**: [HybridURPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridURPSamples)
+- **HDRP**: [HDRPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/GraphicsSamples/HDRPSamples)
+- **URP**: [URPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/GraphicsSamples/URPSamples)
 
 Project folder structure:
 

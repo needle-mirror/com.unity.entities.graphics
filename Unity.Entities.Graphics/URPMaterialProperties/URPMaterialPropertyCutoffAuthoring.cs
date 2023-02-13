@@ -12,7 +12,8 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class URPMaterialPropertyCutoffAuthoring : UnityEngine.MonoBehaviour
     {
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyCutoff), "Value")]
+        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyCutoff), nameof(URPMaterialPropertyCutoff.Value))]
+        [UnityEngine.Range(0,1)]
         public float Value;
 
         class URPMaterialPropertyCutoffBaker : Unity.Entities.Baker<URPMaterialPropertyCutoffAuthoring>

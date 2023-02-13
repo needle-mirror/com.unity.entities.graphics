@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -778,8 +777,8 @@ namespace Unity.Rendering
             IndirectList<U> list,
             int innerLoopBatchCount = 1,
             JobHandle dependencies = default)
-                where T : struct, IJobParallelForDefer
-                where U : unmanaged
+            where T : struct, IJobParallelForDefer
+            where U : unmanaged
         {
             return jobData.Schedule(&list.List->m_length, innerLoopBatchCount, dependencies);
         }
@@ -997,8 +996,8 @@ namespace Unity.Rendering
             {
                 for (int i = index; i < ChunkDrawCommandOutput.NumThreads; i += NumThreads)
                 {
-                        DrawCommandOutput.ThreadLocalDrawCommands[i].Dispose();
-                        DrawCommandOutput.ThreadLocalCollectBuffers[i].Dispose();
+                    DrawCommandOutput.ThreadLocalDrawCommands[i].Dispose();
+                    DrawCommandOutput.ThreadLocalCollectBuffers[i].Dispose();
                 }
             }
         }
@@ -1013,9 +1012,11 @@ namespace Unity.Rendering
         [ReadOnly] public ComponentTypeHandle<LocalToWorld> LocalToWorld;
         [ReadOnly] public ComponentTypeHandle<DepthSorted_Tag> DepthSorted;
         [ReadOnly] public ComponentTypeHandle<DeformedMeshIndex> DeformedMeshIndex;
+        [ReadOnly] public SharedComponentTypeHandle<RenderMeshArray> RenderMeshArray;
         [ReadOnly] public SharedComponentTypeHandle<RenderFilterSettings> RenderFilterSettings;
         [ReadOnly] public SharedComponentTypeHandle<LightMaps> LightMaps;
         [ReadOnly] public NativeParallelHashMap<int, BatchFilterSettings> FilterSettings;
+        [ReadOnly] public NativeParallelHashMap<int, BRGRenderMeshArray> BRGRenderMeshArrays;
 
         public ChunkDrawCommandOutput DrawCommandOutput;
 
@@ -1028,13 +1029,11 @@ namespace Unity.Rendering
 
 #if UNITY_EDITOR
         [ReadOnly] public SharedComponentTypeHandle<EditorRenderData> EditorDataComponentHandle;
-        [ReadOnly] public NativeParallelHashMap<int, BatchEditorRenderData> BatchEditorData;
 #endif
 
         public void Execute(int index)
         {
             var visibilityItem = VisibilityItems.ElementAt(index);
-
 
             var chunk = visibilityItem.Chunk;
             var chunkVisibility = visibilityItem.Visibility;
@@ -1043,6 +1042,17 @@ namespace Unity.Rendering
             BatchFilterSettings filterSettings = FilterSettings[filterIndex];
 
             if (((1 << filterSettings.layer) & CullingLayerMask) == 0) return;
+
+            // If the chunk has a RenderMeshArray, get access to the corresponding registered
+            // Material and Mesh IDs
+            BRGRenderMeshArray brgRenderMeshArray = default;
+            if (!BRGRenderMeshArrays.IsEmpty)
+            {
+                int renderMeshArrayIndex = chunk.GetSharedComponentIndex(RenderMeshArray);
+                bool hasRenderMeshArray = renderMeshArrayIndex >= 0;
+                if (hasRenderMeshArray)
+                    BRGRenderMeshArrays.TryGetValue(renderMeshArrayIndex, out brgRenderMeshArray);
+            }
 
             DrawCommandOutput.InitializeForEmitThread();
 
@@ -1108,9 +1118,17 @@ namespace Unity.Rendering
 
                         var materialMeshInfo = materialMeshInfos[entityIndex];
 
+                        BatchMaterialID materialID = materialMeshInfo.IsRuntimeMaterial
+                            ? materialMeshInfo.MaterialID
+                            : brgRenderMeshArray.GetMaterialID(materialMeshInfo);
+
+                        BatchMeshID meshID = materialMeshInfo.IsRuntimeMesh
+                            ? materialMeshInfo.MeshID
+                            : brgRenderMeshArray.GetMeshID(materialMeshInfo);
+
                         // Null materials are handled internally by Unity using the error material if available.
                         // Invalid meshes at this point will be skipped.
-                        if (materialMeshInfo.Mesh <= 0)
+                        if (meshID == BatchMeshID.Null)
                             continue;
 
                         bool flipWinding = (chunkCullingData.FlippedWinding[j] & entityMask) != 0;
@@ -1119,8 +1137,8 @@ namespace Unity.Rendering
                         {
                             FilterIndex = filterIndex,
                             BatchID = new BatchID { value = (uint)batchIndex },
-                            MaterialID = materialMeshInfo.MaterialID,
-                            MeshID = materialMeshInfo.MeshID,
+                            MaterialID = materialID,
+                            MeshID = meshID,
                             SplitMask = chunkVisibility->SplitMasks[entityIndex],
                             SubmeshIndex = (ushort)materialMeshInfo.Submesh,
                             Flags = 0
@@ -1155,18 +1173,13 @@ namespace Unity.Rendering
         private bool TestSceneCullingMask(ArchetypeChunk chunk)
         {
 #if UNITY_EDITOR
-            int editorRenderDataIndex = chunk.GetSharedComponentIndex(EditorDataComponentHandle);
-
             // If we can't find a culling mask, use the default
             ulong chunkSceneCullingMask = EditorSceneManager.DefaultSceneCullingMask;
 
-            if (editorRenderDataIndex >= 0)
+            if (chunk.Has(EditorDataComponentHandle))
             {
-                BatchEditorRenderData data;
-                if (BatchEditorData.TryGetValue(editorRenderDataIndex, out data))
-                {
-                    chunkSceneCullingMask = data.SceneCullingMask;
-                }
+                var editorRenderData = chunk.GetSharedComponent(EditorDataComponentHandle);
+                chunkSceneCullingMask = editorRenderData.SceneCullingMask;
             }
 
             // Cull the chunk if the scene mask intersection is empty.

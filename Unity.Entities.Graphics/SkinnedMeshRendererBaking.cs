@@ -88,6 +88,7 @@ namespace Unity.Rendering
 
                 var skinMatrices = AddBuffer<SkinMatrix>(deformedEntity);
                 skinMatrices.ResizeUninitialized(bones.Length);
+                var bindposes = mesh.GetBindposes();
 
                 for (int i = 0; i < bones.Length; ++i)
                 {
@@ -99,7 +100,7 @@ namespace Unity.Rendering
 
                     Assert.IsTrue(i < authoring.sharedMesh.bindposeCount, $"No corresponding bindpose found for the bone ({bones[i].name}) at index {i}.");
 
-                    var bindPose = mesh.bindposes[i];
+                    var bindPose = bindposes[i];
                     var boneMatRootSpace = math.mul(rootMatrixInv, bones[i].localToWorldMatrix);
                     var skinMatRootSpace = math.mul(boneMatRootSpace, bindPose);
                     skinMatrices[i] = new SkinMatrix

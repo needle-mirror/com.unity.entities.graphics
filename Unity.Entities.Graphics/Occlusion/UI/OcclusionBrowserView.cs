@@ -159,6 +159,11 @@ public class OcclusionBrowserView : VisualElement
         var bg = BufferGroups[currentSelection];
 
         var tex = bg.GetVisualizationTexture();
+        if (tex == null)
+        {
+            return;
+        }
+
         float2 pos = evt.localMousePosition;
         pos.x /= viewData.localBound.width;
         pos.y /= viewData.localBound.height;
@@ -206,6 +211,12 @@ public class OcclusionBrowserView : VisualElement
         vertices[1].tint =
         vertices[2].tint =
         vertices[3].tint = Color.white;
+
+        if (CurrentSliceTexture == null)
+        {
+			mgc.DrawText("Inactive view", new Vector2(5, 5), 12, Color.white);
+            return;
+		}
 
         MeshWriteData mwd = mgc.Allocate(vertices.Length, indices.Length, CurrentSliceTexture);
 

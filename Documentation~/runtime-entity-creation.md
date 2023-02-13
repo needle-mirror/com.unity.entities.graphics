@@ -5,6 +5,7 @@ To render an entity, Entities Graphics requires that the entity contains a speci
 ## RenderMeshUtility - AddComponents
 
 This API takes an entity and adds the components Entities Graphics requires based on the given mesh and material, and a `RenderMeshDescription`, which is a struct that describes additional rendering settings. There are two versions of the API:
+
 - One version accepts a `RenderMesh`. For information on the structure of a `RenderMesh`, see [RenderMesh](#rendermesh). Entities Graphics only uses this version during the GameObject conversion process; using this version at runtime doesn't produce rendering entities.
 - A second version accepts a `RenderMeshArray`. For information on the structure of a `RenderMeshArray`, see [RenderMeshArray](#rendermesharray). Use this version of `AddComponents` at runtime.
 
@@ -26,8 +27,8 @@ A `RenderMeshArray` contains a list of meshes and materials that a collection of
 
 The `MaterialMeshInfo` is a Burst-compatible plain data component that you can use to efficiently select or change an entity's mesh and material. This component supports two methods of selecting or changing an entity's mesh or material:
 
-* Referring to array indices inside a `RenderMeshArray` shared component on the same entity.
-* Referring directly to mesh and material IDs that you registered with the Entities Graphics beforehand.
+- Referring to array indices inside a `RenderMeshArray` shared component on the same entity.
+- Referring directly to mesh and material IDs that you registered with the Entities Graphics beforehand.
 
 ### Usage instructions
 
@@ -95,7 +96,7 @@ public class AddComponentsExample : MonoBehaviour
             receiveShadows: false);
 
         // Create an array of mesh and material required for runtime rendering.
-        var renderMeshArray = new RenderMeshArray(new List<Material> { Material }, new List<Mesh> { Mesh });
+        var renderMeshArray = new RenderMeshArray(new Material[] { Material }, new Mesh[] { Mesh });
 
         // Create empty base entity
         var prototype = entityManager.CreateEntity();
@@ -129,4 +130,3 @@ public class AddComponentsExample : MonoBehaviour
     }
 }
 ```
-

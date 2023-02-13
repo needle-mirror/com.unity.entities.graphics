@@ -3,6 +3,37 @@ uid: changelog
 ---
 # Changelog
 
+## [1.0.0-pre.44] - 2023-02-13
+
+### Added
+
+* Optimize OnPerformCulling by computing the CullingSplits from a main thread Burst job.
+* EntitiesGraphicsSystem.GetMesh and EntitiesGraphicsSystem.GetMaterial are now public.
+* Warning in-editor when using Entities.Graphics and URP that Forward+ rendering path should be used.
+
+### Changed
+
+* Removed async readback from deformations and replaced with fixed number of frames.
+* The built-in properties for URP has been changed so that they have a slider for most values between 0-1. Relevant properties have also been changed from using a float4 for color in the inspector to use a color property instead.
+* `PushBlendWeightSystem.cs`, `PushSkinMatrixSystem.cs`, `MeshRendererBaking.cs` script files have been updated to the latest idiomatic `foreach()`.
+* Changed skin matrix / blend shape weight access in CopyBlendShapeWeightsToGPUJob and CopySkinMatricesToGPUJob to readonly.
+* Improved `SkinnedMeshRenderer` baking performance
+* Updated com.unity.render-pipelines.core dependency from 14.0.4 to 14.0.6
+
+### Removed
+
+ * Removed RemapMaterialMeshIndexJob. Both array indices and runtime IDs are now directly supported for MaterialMeshInfo.
+
+### Fixed
+
+* Occlusion browser not being updated properly in play mode.
+* Only call UpdateAllBatches if there are entities graphics chunks
+* Fixed a bug with Baked Lights inside subscenes, where the bakingOutput of such Lights was not updated correctly.
+* Fixed global ambient probe when multiple cameras are present with HDRP
+* Light baking will cause the MeshRenderers to bake, thus automatically updating the light map in the entities scene. This previously required forcing the reimport of the entity scene.
+* 'GraphicsDeviceType.OpenGLES2' is obsolete: 'OpenGL ES 2.0 is no longer supported in Unity 2023.1'
+
+
 ## [1.0.0-pre.15] - 2022-11-16
 
 ### Added
@@ -22,19 +53,16 @@ uid: changelog
 * Blend shapes not working on certain GPUs.
 * Improved error behavior when null Meshes or Materials are used with Entities.
 
+### Security
 
 ## [1.0.0-exp.14] - 2022-10-19
 
-
 ### Changed
-
 * Updated documentation for mesh deformations.
 * Removed async readback from deformations and replaced with fixed number of frames.
 
-
 ### Fixed
-
-* Fixed a bug in the BatchingBenchmark sample scene where it would only spawn entities the first time it was dynamically loaded.
+* Fixed a bug in the BatchingBenchmark sample scene where it would only spawn entites the first time it was dynamically loaded.
 * Fixed an issue where Entities Graphics would cause issues with the device being able to idle.
 
 
@@ -59,7 +87,6 @@ uid: changelog
 * DeformationsInPresentation and SkinnedMeshRendererConversion are now sealed.
 * RegisterMaterialMeshSystem  is now internal instead of public.
 
-
 ### Removed
 
 * PushMeshDataSystem, PushSkinMatrixSystem, PushBlendWeightSystem, InstantiateDeformationSystem, BlendShapeDeformationSystem and SkinningDeformationSystem are no longer part of the public API. Use DeformationsInPresentation instead.
@@ -70,6 +97,7 @@ uid: changelog
 * Mesh and material indices not updating correctly if entity was created ad disabled and later enabled.
 * Improved multi threaded load balancing of the Entities Graphics frustum culling Burst job
 * Guard against overflow of static readonly int k_MaxSize for the deformation buffers.
+
 
 ## [0.14.0] - 2021-09-17
 

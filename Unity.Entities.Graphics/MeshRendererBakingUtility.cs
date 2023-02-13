@@ -141,8 +141,6 @@ namespace Unity.Rendering
                 var lodComponent = new MeshLODComponent { Group = lodState.LodGroupEntity, LODMask = 1 << lodState.LodGroupIndex };
                 baker.AddComponent(entity, lodComponent);
             }
-
-            baker.ConfigureEditorRenderData(entity, renderer.gameObject, true);
         }
 
         internal static void ConvertToMultipleEntities<T>(
@@ -209,8 +207,6 @@ namespace Unity.Rendering
                     var lodComponent = new MeshLODComponent { Group = lodState.LodGroupEntity, LODMask = 1 << lodState.LodGroupIndex };
                     baker.AddComponent(meshEntity, lodComponent);
                 }
-
-                baker.ConfigureEditorRenderData(meshEntity, renderer.gameObject, true);
             }
         }
     }

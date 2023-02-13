@@ -10,10 +10,7 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class HDRPMaterialPropertyUnlitColorAuthoring : UnityEngine.MonoBehaviour
     {
-        [RegisterBinding(typeof(HDRPMaterialPropertyUnlitColor), "Value.x", true)]
-        [RegisterBinding(typeof(HDRPMaterialPropertyUnlitColor), "Value.y", true)]
-        [RegisterBinding(typeof(HDRPMaterialPropertyUnlitColor), "Value.z", true)]
-        [RegisterBinding(typeof(HDRPMaterialPropertyUnlitColor), "Value.w", true)]
+        [RegisterBinding(typeof(HDRPMaterialPropertyUnlitColor), nameof(HDRPMaterialPropertyUnlitColor.Value))]
         public float4 Value;
 
         class HDRPMaterialPropertyUnlitColorBaker : Baker<HDRPMaterialPropertyUnlitColorAuthoring>

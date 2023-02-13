@@ -1,6 +1,7 @@
 #if URP_10_0_0_OR_NEWER
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace Unity.Rendering
 {
@@ -13,18 +14,21 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class URPMaterialPropertyEmissionColorAuthoring : UnityEngine.MonoBehaviour
     {
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyEmissionColor), "Value.x", true)]
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyEmissionColor), "Value.y", true)]
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyEmissionColor), "Value.z", true)]
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyEmissionColor), "Value.w", true)]
-        public Unity.Mathematics.float4 Value;
+        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyEmissionColor), nameof(URPMaterialPropertyEmissionColor.Value))]
+        [ColorUsage(true, true)]
+        public UnityEngine.Color color;
 
         class URPMaterialPropertyEmissionColorBaker : Unity.Entities.Baker<URPMaterialPropertyEmissionColorAuthoring>
         {
             public override void Bake(URPMaterialPropertyEmissionColorAuthoring authoring)
             {
                 Unity.Rendering.URPMaterialPropertyEmissionColor component = default(Unity.Rendering.URPMaterialPropertyEmissionColor);
-                component.Value = authoring.Value;
+                float4 colorValues;
+                colorValues.x = authoring.color.r;
+                colorValues.y = authoring.color.g;
+                colorValues.z = authoring.color.b;
+                colorValues.w = authoring.color.a;
+                component.Value = colorValues;
                 AddComponent(component);
             }
         }

@@ -12,7 +12,7 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class URPMaterialPropertyBumpScaleAuthoring : UnityEngine.MonoBehaviour
     {
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyBumpScale), "Value")]
+        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertyBumpScale), nameof(URPMaterialPropertyBumpScale.Value))]
         public float Value;
 
         class URPMaterialPropertyBumpScaleBaker : Unity.Entities.Baker<URPMaterialPropertyBumpScaleAuthoring>

@@ -23,6 +23,7 @@
 // #define PROFILE_BURST_JOB_INTERNALS
 // #define DISABLE_HYBRID_RENDERER_ERROR_LOADING_SHADER
 // #define DISABLE_INCLUDE_EXCLUDE_LIST_FILTERING
+// #define DISABLE_MATERIALMESHINFO_BOUNDS_CHECKING
 
 // Entities Graphics is disabled if SRP 10 is not found, unless an override define is present
 // It is also disabled if -nographics is given from the command line.
@@ -46,6 +47,10 @@
 #define ENABLE_PICKING
 #endif
 
+#if (ENABLE_UNITY_COLLECTIONS_CHECKS || DEVELOPMENT_BUILD) && !DISABLE_MATERIALMESHINFO_BOUNDS_CHECKING
+#define ENABLE_MATERIALMESHINFO_BOUNDS_CHECKING
+#endif
+
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -65,6 +70,11 @@ using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 
+#if URP_10_0_0_OR_NEWER && UNITY_EDITOR
+using System.Reflection;
+using UnityEngine.Rendering.Universal;
+#endif
+
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -75,13 +85,6 @@ using Unity.Rendering.Occlusion;
 
 namespace Unity.Rendering
 {
-#if UNITY_EDITOR
-    internal struct BatchEditorRenderData
-    {
-        public ulong SceneCullingMask;
-    }
-#endif
-
     // Describes a single material property that can be mapped to an ECS type.
     // Contains the name as a string, unlike the other types.
     internal struct NamedPropertyMapping
@@ -144,14 +147,36 @@ namespace Unity.Rendering
         public UnsafeList<BatchMaterialID> Materials;
         public UnsafeList<BatchMeshID> Meshes;
         public uint4 Hash128;
+
+        public BatchMaterialID GetMaterialID(MaterialMeshInfo materialMeshInfo)
+        {
+            int materialIndex = materialMeshInfo.MaterialArrayIndex;
+
+            if (!Materials.IsCreated || materialIndex >= Materials.Length)
+                return BatchMaterialID.Null;
+            else
+                return Materials[materialIndex];
+        }
+
+        public BatchMeshID GetMeshID(MaterialMeshInfo materialMeshInfo)
+        {
+            int meshIndex = materialMeshInfo.MeshArrayIndex;
+
+            if (!Meshes.IsCreated || meshIndex >= Meshes.Length)
+                return BatchMeshID.Null;
+            else
+                return Meshes[meshIndex];
+        }
     }
 
     [BurstCompile]
-    internal struct RemapMaterialMeshIndexJob : IJobChunk
+    internal struct BoundsCheckMaterialMeshIndexJob : IJobChunk
     {
         [ReadOnly] public SharedComponentTypeHandle<RenderMeshArray> RenderMeshArrayHandle;
-        public ComponentTypeHandle<MaterialMeshInfo> MaterialMeshInfoHandle;
         [ReadOnly] public NativeParallelHashMap<int, BRGRenderMeshArray> BRGRenderMeshArrays;
+        [ReadOnly] public ComponentTypeHandle<MaterialMeshInfo> MaterialMeshInfoHandle;
+        public EntityTypeHandle EntityHandle;
+        public NativeList<Entity>.ParallelWriter EntitiesWithOutOfBoundsMMI;
 
         public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
         {
@@ -160,6 +185,7 @@ namespace Unity.Rendering
 
             var sharedComponentIndex = chunk.GetSharedComponentIndex(RenderMeshArrayHandle);
             var materialMeshInfos = chunk.GetNativeArray(ref MaterialMeshInfoHandle);
+            var entities = chunk.GetNativeArray(EntityHandle);
 
             BRGRenderMeshArray brgRenderMeshArray;
             bool found = BRGRenderMeshArrays.TryGetValue(sharedComponentIndex, out brgRenderMeshArray);
@@ -172,14 +198,16 @@ namespace Unity.Rendering
                 for (int i = 0, chunkEntityCount = chunk.Count; i < chunkEntityCount; i++)
                 {
                     var materialMeshInfo = materialMeshInfos[i];
+                    bool outOfBounds = false;
 
                     if (!materialMeshInfo.IsRuntimeMaterial)
-                        materialMeshInfo.Material = (int)materials[materialMeshInfo.MaterialArrayIndex].value;
+                        outOfBounds = outOfBounds || materialMeshInfo.MaterialArrayIndex >= materials.Length;
 
                     if (!materialMeshInfo.IsRuntimeMesh)
-                        materialMeshInfo.Mesh = (int)meshes[materialMeshInfo.MeshArrayIndex].value;
+                        outOfBounds = outOfBounds || materialMeshInfo.MeshArrayIndex >= meshes.Length;
 
-                    materialMeshInfos[i] = materialMeshInfo;
+                    if (outOfBounds)
+                        EntitiesWithOutOfBoundsMMI.AddNoResize(entities[i]);
                 }
             }
         }
@@ -240,14 +268,11 @@ namespace Unity.Rendering
     /// <summary>
     /// A system that registers Materials and meshes with the BatchRendererGroup.
     /// </summary>
-    /// <remarks>
-    /// Schedule any changes to materials and meshes before this system runs if you want automatic registration and conversion to runtime IDs.
-    /// After this system runs, all information on MaterialMeshInfo is assumed to be using runtime IDs only.
-    /// </summary>
     //@TODO: Updating always necessary due to empty component group. When Component group and archetype chunks are unified, [RequireMatchingQueriesForUpdate] can be added.
     [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [UpdateBefore(typeof(EntitiesGraphicsSystem))]
+    [CreateAfter(typeof(EntitiesGraphicsSystem))]
     partial class RegisterMaterialsAndMeshesSystem : SystemBase
     {
         // Reuse Lists used for GetAllUniqueSharedComponentData to avoid GC allocs every frame
@@ -256,10 +281,15 @@ namespace Unity.Rendering
         private List<int> m_SharedComponentVersions = new List<int>();
 
         NativeParallelHashMap<int, BRGRenderMeshArray> m_BRGRenderMeshArrays;
+        internal NativeParallelHashMap<int, BRGRenderMeshArray> BRGRenderMeshArrays => m_BRGRenderMeshArrays;
 
         EntitiesGraphicsSystem m_RendererSystem;
 
-        private EntityQuery m_ChangedMaterialMeshQuery;
+#if ENABLE_MATERIALMESHINFO_BOUNDS_CHECKING
+        private EntityQuery m_ChangedMaterialMeshQuery = default;
+        private NativeList<Entity> m_EntitiesWithOutOfBoundsMMI;
+        private JobHandle m_BoundsCheckHandle = default;
+#endif
 
         /// <inheritdoc/>
         protected override void OnCreate()
@@ -271,8 +301,9 @@ namespace Unity.Rendering
             }
 
             m_BRGRenderMeshArrays = new NativeParallelHashMap<int, BRGRenderMeshArray>(256, Allocator.Persistent);
-            m_RendererSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
+            m_RendererSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 
+#if ENABLE_MATERIALMESHINFO_BOUNDS_CHECKING
             m_ChangedMaterialMeshQuery = GetEntityQuery(new EntityQueryDesc
             {
                 All = new[]
@@ -283,6 +314,7 @@ namespace Unity.Rendering
                 Options = EntityQueryOptions.IncludeDisabledEntities,
             });
             m_ChangedMaterialMeshQuery.SetChangedVersionFilter(ComponentType.ReadWrite<MaterialMeshInfo>());
+#endif
         }
 
         /// <inheritdoc/>
@@ -471,16 +503,97 @@ namespace Unity.Rendering
                 brgRenderArray.Meshes.Dispose();
             }
 
+#if ENABLE_MATERIALMESHINFO_BOUNDS_CHECKING
             // Fire jobs to remap offline->runtime indices
-            var remapMaterialMeshIndexHandle = new RemapMaterialMeshIndexJob
-            {
-                RenderMeshArrayHandle = GetSharedComponentTypeHandle<RenderMeshArray>(),
-                MaterialMeshInfoHandle = GetComponentTypeHandle<MaterialMeshInfo>(),
-                BRGRenderMeshArrays = m_BRGRenderMeshArrays,
-            }
-            .ScheduleParallel(m_ChangedMaterialMeshQuery, inputDeps);
+            m_EntitiesWithOutOfBoundsMMI = new NativeList<Entity>(
+                m_ChangedMaterialMeshQuery.CalculateEntityCount(),
+                WorldUpdateAllocator);
+            m_BoundsCheckHandle = new BoundsCheckMaterialMeshIndexJob
+                {
+                    RenderMeshArrayHandle = GetSharedComponentTypeHandle<RenderMeshArray>(),
+                    MaterialMeshInfoHandle = GetComponentTypeHandle<MaterialMeshInfo>(true),
+                    EntityHandle = GetEntityTypeHandle(),
+                    BRGRenderMeshArrays = m_BRGRenderMeshArrays,
+                    EntitiesWithOutOfBoundsMMI = m_EntitiesWithOutOfBoundsMMI.AsParallelWriter(),
+                }
+                .ScheduleParallel(m_ChangedMaterialMeshQuery, inputDeps);
 
-            return remapMaterialMeshIndexHandle;
+            return m_BoundsCheckHandle;
+#else
+            return default;
+#endif
+        }
+
+        internal void LogBoundsCheckErrorMessages()
+        {
+#if ENABLE_MATERIALMESHINFO_BOUNDS_CHECKING
+            m_BoundsCheckHandle.Complete();
+
+            foreach (Entity e in m_EntitiesWithOutOfBoundsMMI)
+            {
+                if (!EntityManager.Exists(e))
+                    continue;
+
+                var rma = EntityManager.GetSharedComponentManaged<RenderMeshArray>(e);
+                var mmi = EntityManager.GetComponentData<MaterialMeshInfo>(e);
+
+                UnityEngine.Object authoring = null;
+#if UNITY_EDITOR
+                authoring = EntityManager.Debug.GetAuthoringObjectForEntity(e);
+#endif
+                int numMeshes = rma.Meshes?.Length ?? 0;
+                int numMaterials = rma.Materials?.Length ?? 0;
+
+                bool meshValid = mmi.IsRuntimeMesh || mmi.MeshArrayIndex < numMeshes;
+                bool materialValid = mmi.IsRuntimeMaterial || mmi.MaterialArrayIndex < numMaterials;
+
+                string meshMsg;
+                string materialMsg;
+
+                if (meshValid)
+                {
+                    if (mmi.IsRuntimeMesh)
+                    {
+                        meshMsg = $"MeshID: {mmi.Mesh} (runtime registered)";
+                    }
+                    else
+                    {
+                        Mesh mesh = rma.GetMesh(mmi);
+                        meshMsg = $"MeshID: {mmi.Mesh} (array index: {mmi.MeshArrayIndex}, \"{mesh}\")";
+                    }
+                }
+                else
+                {
+                    meshMsg = $"MeshID: {mmi.Mesh} (invalid out of bounds array index: {mmi.MeshArrayIndex})";
+                }
+
+                if (materialValid)
+                {
+                    if (mmi.IsRuntimeMaterial)
+                    {
+                        materialMsg = $"MaterialID: {mmi.Material} (runtime registered)";
+                    }
+                    else
+                    {
+                        Material material = rma.GetMaterial(mmi);
+                        materialMsg = $"MaterialID: {mmi.Material} (array index: {mmi.MaterialArrayIndex}, \"{material}\")";
+                    }
+                }
+                else
+                {
+                    materialMsg =
+                        $"MaterialID: {mmi.Material} (invalid out of bounds array index: {mmi.MaterialArrayIndex})";
+                }
+
+                string entityDebugString = authoring is null
+                    ? e.ToString()
+                    : authoring.ToString();
+
+                Debug.LogError(
+                    $"Entity \"{entityDebugString}\" has an invalid out of bounds index to a Mesh or Material, and will not render correctly at runtime. {meshMsg}. Number of Meshes in RenderMeshArray: {numMeshes}. {materialMsg}. Number of Materials in RenderMeshArray: {numMaterials}.",
+                    authoring);
+            }
+#endif
         }
     }
 
@@ -557,10 +670,6 @@ namespace Unity.Rendering
         private HeapAllocator m_GPUPersistentAllocator;
         private HeapBlock m_SharedZeroAllocation;
 
-        private GraphicsBuffer m_GlobalValuesCbuffer;
-        private BatchRendererGroupGlobals m_GlobalValues;
-        private bool m_GlobalValuesDirty;
-
         private HeapAllocator m_ChunkMetadataAllocator;
 
         private NativeList<BatchInfo> m_BatchInfos;
@@ -622,6 +731,34 @@ namespace Unity.Rendering
             Profiler.EndSample();
         }
 
+#if URP_10_0_0_OR_NEWER
+        private void ValidateUsingURPForwardPlus()
+        {
+            // If using URP, display and warning indicating that Forward+ is the preferred rendering mode
+            RenderPipelineAsset pipelineAsset = GraphicsSettings.renderPipelineAsset;
+            if (pipelineAsset is UniversalRenderPipelineAsset)
+            {
+                UniversalRenderPipelineAsset settings = pipelineAsset as UniversalRenderPipelineAsset;
+                var rendererDataListField = typeof(UniversalRenderPipelineAsset).GetField("m_RendererDataList", BindingFlags.NonPublic | BindingFlags.Instance);
+                var defaultRendererIndexField = typeof(UniversalRenderPipelineAsset).GetField("m_DefaultRendererIndex", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (rendererDataListField != null && defaultRendererIndexField != null)
+                {
+                    ScriptableRendererData[] rendererDatas = rendererDataListField.GetValue(settings) as ScriptableRendererData[];
+                    int defaultRendererDataIndex = (int)defaultRendererIndexField.GetValue(settings);
+                    UniversalRendererData universalRendererData = rendererDatas[defaultRendererDataIndex] as UniversalRendererData;
+                    var renderingModeField = typeof(UniversalRendererData).GetField("m_RenderingMode", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (renderingModeField != null)
+                    {
+                        RenderingMode renderingMode = (RenderingMode)renderingModeField.GetValue(universalRendererData);
+                        if (renderingMode != RenderingMode.ForwardPlus)
+                        {
+                            Debug.LogWarning("Entities.Graphics should be used with URP Forward+. Change Rendering Path on " + universalRendererData.name + " for best compatibility.");
+                        }
+                    }
+                }
+            }
+        }
+#endif
 #endif
 
         private bool m_ResetLod;
@@ -630,7 +767,7 @@ namespace Unity.Rendering
         float3 m_PrevCameraPos;
         float m_PrevLodDistanceScale;
 
-        NativeMultiHashMap<int, MaterialPropertyType> m_NameIDToMaterialProperties;
+        NativeParallelMultiHashMap<int, MaterialPropertyType> m_NameIDToMaterialProperties;
         NativeParallelHashMap<int, MaterialPropertyType> m_TypeIndexToMaterialProperty;
 
         static Dictionary<Type, NamedPropertyMapping> s_TypeToPropertyMappings = new Dictionary<Type, NamedPropertyMapping>();
@@ -650,10 +787,6 @@ namespace Unity.Rendering
 
         // Burst accessible filter settings for each RenderFilterSettings shared component index
         private NativeParallelHashMap<int, BatchFilterSettings> m_FilterSettings;
-#if UNITY_EDITOR
-        private List<EditorRenderData> m_EditorRenderDatas = new List<EditorRenderData>();
-        private NativeParallelHashMap<int, BatchEditorRenderData> m_BatchEditorDatas;
-#endif
 
 #if ENABLE_PICKING
         Material m_PickingMaterial;
@@ -678,6 +811,11 @@ namespace Unity.Rendering
                 Debug.Log("No SRP present, no compute shader support, or running with -nographics. Entities Graphics package disabled");
                 return;
             }
+
+
+#if URP_10_0_0_OR_NEWER && UNITY_EDITOR
+            ValidateUsingURPForwardPlus();
+#endif
 
             m_FirstFrameAfterInit = true;
 
@@ -774,15 +912,12 @@ namespace Unity.Rendering
 #endif
 
             // Collect all components with [MaterialProperty] attribute
-            m_NameIDToMaterialProperties = new NativeMultiHashMap<int, MaterialPropertyType>(256, Allocator.Persistent);
+            m_NameIDToMaterialProperties = new NativeParallelMultiHashMap<int, MaterialPropertyType>(256, Allocator.Persistent);
             m_TypeIndexToMaterialProperty = new NativeParallelHashMap<int, MaterialPropertyType>(256, Allocator.Persistent);
 
             m_GraphicsArchetypes = new EntitiesGraphicsArchetypes(256);
 
             m_FilterSettings = new NativeParallelHashMap<int, BatchFilterSettings>(256, Allocator.Persistent);
-#if UNITY_EDITOR
-            m_BatchEditorDatas = new NativeParallelHashMap<int, BatchEditorRenderData>(256, Allocator.Persistent);
-#endif
 
             // Some hardcoded mappings to avoid dependencies to Hybrid from DOTS
 #if SRP_10_0_0_OR_NEWER
@@ -796,9 +931,6 @@ namespace Unity.Rendering
 #if ENABLE_PICKING
             RegisterMaterialPropertyType(typeof(Entity), "unity_EntityId");
 #endif
-
-            m_GlobalValues = BatchRendererGroupGlobals.Default;
-            m_GlobalValuesDirty = true;
 
             foreach (var typeInfo in TypeManager.AllTypes)
             {
@@ -824,11 +956,6 @@ namespace Unity.Rendering
                 4);
 
             m_GPUPersistentInstanceBufferHandle = m_GPUPersistentInstanceData.bufferHandle;
-
-            m_GlobalValuesCbuffer = new GraphicsBuffer(
-                GraphicsBuffer.Target.Constant,
-                1,
-                UnsafeUtility.SizeOf<BatchRendererGroupGlobals>());
 
             m_GPUUploader = new SparseUploader(m_GPUPersistentInstanceData, kGPUUploaderChunkSize);
 
@@ -977,8 +1104,7 @@ namespace Unity.Rendering
         {
             JobHandle done = default;
             Profiler.BeginSample("UpdateAllBatches");
-            using (var entitiesGraphicsChunks =
-                       m_EntitiesGraphicsRenderedQuery.ToArchetypeChunkArray(Allocator.TempJob))
+            if (m_EntitiesGraphicsRenderedQuery.CalculateChunkCount() > 0)
             {
                 done = UpdateAllBatches(inputDependencies);
             }
@@ -1037,34 +1163,6 @@ namespace Unity.Rendering
             };
         }
 
-        private JobHandle UpdateSceneCullingMasks(JobHandle inputDeps)
-        {
-#if UNITY_EDITOR
-            m_EditorRenderDatas.Clear();
-            m_SharedComponentIndices.Clear();
-
-            // TODO: Maybe this could be partially jobified?
-
-            EntityManager.GetAllUniqueSharedComponentsManaged(m_EditorRenderDatas, m_SharedComponentIndices);
-
-            m_BatchEditorDatas.Clear();
-            for (int i = 0; i < m_SharedComponentIndices.Count; ++i)
-            {
-                int sharedIndex = m_SharedComponentIndices[i];
-                var editorData = m_EditorRenderDatas[i];
-
-                var batchData = new BatchEditorRenderData();
-                batchData.SceneCullingMask = editorData.SceneCullingMask;
-
-                m_BatchEditorDatas[sharedIndex] = batchData;
-            }
-
-            m_EditorRenderDatas.Clear();
-            m_SharedComponentIndices.Clear();
-#endif
-            return new JobHandle();
-        }
-
         /// <inheritdoc/>
         protected override void OnUpdate()
         {
@@ -1099,16 +1197,6 @@ namespace Unity.Rendering
             Profiler.EndSample();
 
             inputDeps = JobHandle.CombineDependencies(inputDeps, updateFilterSettingsHandle);
-
-#if UNITY_EDITOR
-            Profiler.BeginSample("UpdateSceneCullingMasks");
-            var updateSceneCullingMasks = UpdateSceneCullingMasks(inputDeps);
-            Profiler.EndSample();
-
-            inputDeps = JobHandle.CombineDependencies(inputDeps, updateSceneCullingMasks);
-#endif
-
-            UpdateSpecCubeHDRDecode(ReflectionProbe.defaultTextureHDRDecodeValues);
 
             var done = new JobHandle();
             try
@@ -1174,7 +1262,6 @@ namespace Unity.Rendering
         {
             m_GPUUploader.Dispose();
             m_GPUPersistentInstanceData.Dispose();
-            m_GlobalValuesCbuffer.Dispose();
 
 #if UNITY_EDITOR
             Memory.Unmanaged.Free(m_PerThreadStats, Allocator.Persistent);
@@ -1216,9 +1303,6 @@ namespace Unity.Rendering
             m_GraphicsArchetypes.Dispose();
 
             m_FilterSettings.Dispose();
-#if UNITY_EDITOR
-            m_BatchEditorDatas.Dispose();
-#endif
             m_CullingJobReleaseDependency.Complete();
             m_ThreadLocalAllocators.Dispose();
         }
@@ -1358,7 +1442,7 @@ namespace Unity.Rendering
 
             var frustumCullingJob = new FrustumCullingJob
             {
-                Splits = new CullingSplits(ref cullingContext, QualitySettings.shadowProjection, m_ThreadLocalAllocators.GeneralAllocator),
+                Splits = CullingSplits.Create(&cullingContext, QualitySettings.shadowProjection, m_ThreadLocalAllocators.GeneralAllocator->Handle),
                 CullingViewType = cullingContext.viewType,
                 EntitiesGraphicsChunkInfo = GetComponentTypeHandle<EntitiesGraphicsChunkInfo>(true),
                 ChunkWorldRenderBounds = GetComponentTypeHandle<ChunkWorldRenderBounds>(true),
@@ -1392,6 +1476,12 @@ namespace Unity.Rendering
                 m_ThreadLocalAllocators,
                 cullingOutput);
 
+            // To be able to access the material/mesh IDs, we need access to the registered material/mesh
+            // arrays. If we can't get them, then we simply skip in those cases.
+            var brgRenderMeshArrays =
+                World.GetExistingSystemManaged<RegisterMaterialsAndMeshesSystem>()?.BRGRenderMeshArrays
+                ?? new NativeParallelHashMap<int, BRGRenderMeshArray>();
+
             var emitDrawCommandsJob = new EmitDrawCommandsJob
             {
                 VisibilityItems = visibilityItems,
@@ -1404,9 +1494,10 @@ namespace Unity.Rendering
                 FilterSettings = m_FilterSettings,
                 CullingLayerMask = cullingContext.cullingLayerMask,
                 LightMaps = GetSharedComponentTypeHandle<LightMaps>(),
+                RenderMeshArray = GetSharedComponentTypeHandle<RenderMeshArray>(),
+                BRGRenderMeshArrays = brgRenderMeshArrays,
 #if UNITY_EDITOR
                 EditorDataComponentHandle = GetSharedComponentTypeHandle<EditorRenderData>(),
-                BatchEditorData = m_BatchEditorDatas,
 #endif
                 DrawCommandOutput = chunkDrawCommandOutput,
                 SceneCullingMask = cullingContext.sceneCullingMask,
@@ -1608,13 +1699,13 @@ namespace Unity.Rendering
                 NativeArrayOptions.UninitializedMemory);
 
             var classifyNewChunksJob = new ClassifyNewChunksJob
-            {
-                EntitiesGraphicsChunkInfo = entitiesGraphicsRenderedChunkTypeRO,
-                ChunkHeader = chunkHeadersRO,
-                NumNewChunks = numNewChunksArray,
-                NewChunks = newChunks
-            }
-            .ScheduleParallel(m_MetaEntitiesForHybridRenderableChunksQuery, inputDependencies);
+                {
+                    EntitiesGraphicsChunkInfo = entitiesGraphicsRenderedChunkTypeRO,
+                    ChunkHeader = chunkHeadersRO,
+                    NumNewChunks = numNewChunksArray,
+                    NewChunks = newChunks
+                }
+                .ScheduleParallel(m_MetaEntitiesForHybridRenderableChunksQuery, inputDependencies);
 
             JobHandle entitiesGraphicsCompleted = new JobHandle();
 
@@ -1752,10 +1843,6 @@ namespace Unity.Rendering
             int numGpuUploadOperations = numGpuUploadOperationsArray[0];
             Debug.Assert(numGpuUploadOperations <= gpuUploadOperations.Length, "Maximum GPU upload operation count exceeded");
 
-            Profiler.BeginSample("BlitDirtyGlobalValues");
-            BlitDirtyGlobalValues();
-            Profiler.EndSample();
-
             ComputeUploadSizeRequirements(
                 numGpuUploadOperations, gpuUploadOperations,
                 out int numOperations, out int totalUploadBytes, out int biggestUploadBytes);
@@ -1798,18 +1885,6 @@ namespace Unity.Rendering
             JobHandle outputDeps = JobHandle.CombineDependencies(uploadsExecuted, drawCommandFlagsUpdated);
 
             return outputDeps;
-        }
-
-        private static BatchRendererGroupGlobals[] s_GlobalsArray = new BatchRendererGroupGlobals[1] { default };
-        private void BlitDirtyGlobalValues()
-        {
-            if (m_GlobalValuesDirty)
-            {
-                // SetData needs an array, so put the data in a helper array
-                s_GlobalsArray[0] = m_GlobalValues;
-                m_GlobalValuesCbuffer.SetData(s_GlobalsArray);
-                m_GlobalValuesDirty = false;
-            }
         }
 
         private void UpdateGlobalAABB(NativeArray<ThreadLocalAABB> threadLocalAABBs)
@@ -1919,7 +1994,7 @@ namespace Unity.Rendering
             ref NativeArray<ArchetypeChunk> newChunks,
             ref NativeArray<BatchCreateInfo> sortedNewChunks,
             out MaterialPropertyType failureProperty
-            )
+        )
         {
             failureProperty = default;
             failureProperty.TypeIndex = -1;
@@ -2030,7 +2105,7 @@ namespace Unity.Rendering
             {
                 NameID = nameID,
                 Value = (uint) gpuAddress
-                | (isOverridden ? kPerInstanceDataBit : 0),
+                        | (isOverridden ? kPerInstanceDataBit : 0),
             };
         }
 
@@ -2315,19 +2390,16 @@ namespace Unity.Rendering
         {
             m_GPUUploader.EndAndCommit(m_ThreadedGPUUploader);
 
-            // Globally bind the BRG globals cbuffer so all shaders can access it.
-            Shader.SetGlobalConstantBuffer(
-                BatchRendererGroupGlobals.kGlobalsPropertyId,
-                m_GlobalValuesCbuffer,
-                0,
-                m_GlobalValuesCbuffer.stride);
-
 #if DEBUG_LOG_MEMORY_USAGE
             if (m_GPUPersistentAllocator.UsedSpace != PrevUsedSpace)
             {
                 Debug.Log($"GPU memory: {m_GPUPersistentAllocator.UsedSpace / 1024.0 / 1024.0:F4} / {m_GPUPersistentAllocator.Size / 1024.0 / 1024.0:F4}");
                 PrevUsedSpace = m_GPUPersistentAllocator.UsedSpace;
             }
+#endif
+
+#if ENABLE_MATERIALMESHINFO_BOUNDS_CHECKING
+            World.GetExistingSystemManaged<RegisterMaterialsAndMeshesSystem>()?.LogBoundsCheckErrorMessages();
 #endif
         }
 
@@ -2337,35 +2409,6 @@ namespace Unity.Rendering
             list.Resize(length, resizeOptions);
 
             return list;
-        }
-
-        internal void UpdateSpecCubeHDRDecode(Vector4 specCubeHDRDecode)
-        {
-            if (!Enabled) return;
-
-            bool hdrDecodeDirty = specCubeHDRDecode != m_GlobalValues.SpecCube0_HDR;
-            if (hdrDecodeDirty)
-            {
-                m_GlobalValues.SpecCube0_HDR = specCubeHDRDecode;
-                m_GlobalValues.SpecCube1_HDR = specCubeHDRDecode;
-                m_GlobalValuesDirty = true;
-            }
-        }
-
-        internal void UpdateGlobalAmbientProbe(SHCoefficients globalAmbientProbe)
-        {
-            if (!Enabled) return;
-
-            bool globalAmbientProbeDirty = globalAmbientProbe != m_GlobalValues.SHCoefficients;
-            if (globalAmbientProbeDirty)
-            {
-                m_GlobalValues.SHCoefficients = globalAmbientProbe;
-                m_GlobalValuesDirty = true;
-
-#if DEBUG_LOG_AMBIENT_PROBE
-                Debug.Log($"Global Ambient probe: {globalAmbientProbe.SHAr} {globalAmbientProbe.SHAg} {globalAmbientProbe.SHAb} {globalAmbientProbe.SHBr} {globalAmbientProbe.SHBg} {globalAmbientProbe.SHBb} {globalAmbientProbe.SHC}");
-#endif
-            }
         }
 
         /// <summary>
@@ -2394,8 +2437,19 @@ namespace Unity.Rendering
         /// <param name="mesh">A mesh ID received from <see cref="RegisterMesh"/>.</param>
         public void UnregisterMesh(BatchMeshID mesh) => m_BatchRendererGroup.UnregisterMesh(mesh);
 
-        internal Mesh GetMesh(BatchMeshID mesh) => m_BatchRendererGroup.GetRegisteredMesh(mesh);
-        internal Material GetMaterial(BatchMaterialID material) => m_BatchRendererGroup.GetRegisteredMaterial(material);
+        /// <summary>
+        /// Returns the <see cref="Mesh"/> that corresponds to the given registered mesh ID, or <c>null</c> if no such mesh exists.
+        /// </summary>
+        /// <param name="mesh">A mesh ID received from <see cref="RegisterMesh"/>.</param>
+        /// <returns>The <see cref="Mesh"/> object corresponding to the given mesh ID if the ID is valid, or <c>null</c> if it's not valid.</returns>
+        public Mesh GetMesh(BatchMeshID mesh) => m_BatchRendererGroup.GetRegisteredMesh(mesh);
+
+        /// <summary>
+        /// Returns the <see cref="Material"/> that corresponds to the given registered material ID, or <c>null</c> if no such material exists.
+        /// </summary>
+        /// <param name="material">A material ID received from <see cref="RegisterMaterial"/>.</param>
+        /// <returns>The <see cref="Material"/> object corresponding to the given material ID if the ID is valid, or <c>null</c> if it's not valid.</returns>
+        public Material GetMaterial(BatchMaterialID material) => m_BatchRendererGroup.GetRegisteredMaterial(material);
 
         /// <summary>
         /// Converts a type index into a type name.
@@ -2447,3 +2501,4 @@ namespace Unity.Rendering
         }
     }
 }
+

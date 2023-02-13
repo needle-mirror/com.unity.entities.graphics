@@ -9,7 +9,7 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class HDRPMaterialPropertyAORemapMinAuthoring : UnityEngine.MonoBehaviour
     {
-        [RegisterBinding(typeof(HDRPMaterialPropertyAORemapMin), "Value")]
+        [RegisterBinding(typeof(HDRPMaterialPropertyAORemapMin), nameof(HDRPMaterialPropertyAORemapMin.Value))]
         public float Value;
 
         class HDRPMaterialPropertyAORemapMinBaker : Baker<HDRPMaterialPropertyAORemapMinAuthoring>

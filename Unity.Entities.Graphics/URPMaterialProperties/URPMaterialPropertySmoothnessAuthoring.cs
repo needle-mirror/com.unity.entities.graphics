@@ -12,7 +12,8 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class URPMaterialPropertySmoothnessAuthoring : UnityEngine.MonoBehaviour
     {
-        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertySmoothness), "Value")]
+        [Unity.Entities.RegisterBinding(typeof(URPMaterialPropertySmoothness), nameof(URPMaterialPropertySmoothness.Value))]
+        [UnityEngine.Range(0,1)]
         public float Value;
 
         class URPMaterialPropertySmoothnessBaker : Unity.Entities.Baker<URPMaterialPropertySmoothnessAuthoring>

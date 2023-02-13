@@ -35,6 +35,49 @@ namespace Unity.Rendering
             );
         }
 
+        [WithAll(typeof(SharedMeshTracker))]
+        partial struct ConstructHashMapJob : IJobEntity
+        {
+            public NativeParallelMultiHashMap<Entity, int>.ParallelWriter DeformedEntityToComputeIndexParallel;
+
+            private void Execute(in BlendWeightBufferIndex index, in DeformedEntity deformedEntity)
+            {
+                // Skip if we have an invalid index.
+                if (index.Value == BlendWeightBufferIndex.Null)
+                    return;
+
+                DeformedEntityToComputeIndexParallel.Add(deformedEntity.Value, index.Value);
+            }
+        }
+
+        partial struct CopyBlendShapeWeightsToGPUJob : IJobEntity
+        {
+            [NativeDisableContainerSafetyRestriction] public NativeArray<float> BlendShapeWeightsBuffer;
+            [ReadOnly] public NativeParallelMultiHashMap<Entity, int> DeformedEntityToComputeIndex;
+
+            private void Execute(in DynamicBuffer<BlendShapeWeight> weights, in Entity entity)
+            {
+                // Not all deformed entities in the world will have a renderer attached to them.
+                if (!DeformedEntityToComputeIndex.ContainsKey(entity))
+                    return;
+
+                var length = weights.Length * UnsafeUtility.SizeOf<float>();
+                var indices = DeformedEntityToComputeIndex.GetValuesForKey(entity);
+
+                foreach (var index in indices)
+                {
+                    unsafe
+                    {
+                        UnsafeUtility.MemCpy(
+                            (float*)BlendShapeWeightsBuffer.GetUnsafePtr() + index,
+                            weights.GetUnsafeReadOnlyPtr(),
+                            length
+                        );
+                    }
+                }
+            }
+        }
+        
         protected override void OnUpdate()
         {
             if (m_PushMeshDataSystem.BlendShapeWeightCount == 0)
@@ -42,46 +85,19 @@ namespace Unity.Rendering
 
             k_Marker.Begin();
 
-            var deformedEntityToComputeIndex = new NativeMultiHashMap<Entity, int>(m_BlendShapedEntityQuery.CalculateEntityCount(), Allocator.TempJob);
+            var deformedEntityToComputeIndex = new NativeParallelMultiHashMap<Entity, int>(m_BlendShapedEntityQuery.CalculateEntityCount(), Allocator.TempJob);
             var deformedEntityToComputeIndexParallel = deformedEntityToComputeIndex.AsParallelWriter();
-            Dependency = Entities
-                .WithName("ConstructHashMap")
-                .WithAll<SharedMeshTracker>()
-                .ForEach((in BlendWeightBufferIndex index, in DeformedEntity deformedEntity) =>
-                {
-                    // Skip if we have an invalid index.
-                    if (index.Value == BlendWeightBufferIndex.Null)
-                        return;
-
-                    deformedEntityToComputeIndexParallel.Add(deformedEntity.Value, index.Value);
-                }).ScheduleParallel(Dependency);
+            Dependency = new ConstructHashMapJob
+            {
+                DeformedEntityToComputeIndexParallel = deformedEntityToComputeIndexParallel
+            }.ScheduleParallel(Dependency);
 
             var blendShapeWeightsBuffer = m_PushMeshDataSystem.BlendShapeBufferManager.LockBlendWeightBufferForWrite(m_PushMeshDataSystem.BlendShapeWeightCount);
-            Dependency = Entities
-                .WithName("CopyBlendShapeWeightsToGPU")
-                .WithNativeDisableContainerSafetyRestriction(blendShapeWeightsBuffer)
-                .WithReadOnly(deformedEntityToComputeIndex)
-                .ForEach((ref DynamicBuffer<BlendShapeWeight> weights, in Entity entity) =>
-                {
-                    // Not all deformed entities in the world will have a renderer attached to them.
-                    if (!deformedEntityToComputeIndex.ContainsKey(entity))
-                        return;
-
-                    var length = weights.Length * UnsafeUtility.SizeOf<float>();
-                    var indices = deformedEntityToComputeIndex.GetValuesForKey(entity);
-
-                    foreach (var index in indices)
-                    {
-                        unsafe
-                        {
-                            UnsafeUtility.MemCpy(
-                                (float*)blendShapeWeightsBuffer.GetUnsafePtr() + index,
-                                weights.GetUnsafePtr(),
-                                length
-                            );
-                        }
-                    }
-                }).ScheduleParallel(Dependency);
+            Dependency = new CopyBlendShapeWeightsToGPUJob
+            {
+                BlendShapeWeightsBuffer = blendShapeWeightsBuffer,
+                DeformedEntityToComputeIndex = deformedEntityToComputeIndex
+            }.ScheduleParallel(Dependency);
 
             Dependency = deformedEntityToComputeIndex.Dispose(Dependency);
 

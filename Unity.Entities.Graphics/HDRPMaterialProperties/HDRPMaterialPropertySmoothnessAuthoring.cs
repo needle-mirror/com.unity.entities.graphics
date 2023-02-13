@@ -9,7 +9,7 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class HDRPMaterialPropertySmoothnessAuthoring : UnityEngine.MonoBehaviour
     {
-        [RegisterBinding(typeof(HDRPMaterialPropertySmoothness), "Value")]
+        [RegisterBinding(typeof(HDRPMaterialPropertySmoothness), nameof(HDRPMaterialPropertySmoothness.Value))]
         public float Value;
 
         class HDRPMaterialPropertySmoothnessBaker : Baker<HDRPMaterialPropertySmoothnessAuthoring>

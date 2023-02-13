@@ -117,7 +117,7 @@ namespace Unity.Rendering
                 m_MeshVertexCount.Dispose();
             if (m_BlendShapeWeightCount.IsCreated)
                 m_BlendShapeWeightCount.Dispose();
-            if(m_SkinMatrixCount.IsCreated)
+            if (m_SkinMatrixCount.IsCreated)
                 m_SkinMatrixCount.Dispose();
 
             m_MeshBufferManager?.Dispose();
@@ -304,16 +304,33 @@ namespace Unity.Rendering
                     rmvMeshes.Add(tracked.VersionHash);
                 }).Run();
 
+            var brgRenderMeshArrays = World.GetExistingSystemManaged<RegisterMaterialsAndMeshesSystem>()?.BRGRenderMeshArrays ?? new NativeParallelHashMap<int, BRGRenderMeshArray>();
+            var renderMeshArrayHandle = GetSharedComponentTypeHandle<RenderMeshArray>();
+
             Entities
                 .WithName("AddComponents")
                 .WithAll<DeformedEntity>()
                 .WithNone<SharedMeshTracker>()
                 .WithStructuralChanges()
-                .ForEach((Entity e, in MaterialMeshInfo renderData) =>
+                .ForEach((Entity e, in MaterialMeshInfo materialMeshInfo) =>
                 {
-                    var meshID = renderData.MeshID;
+                    // If the chunk has a RenderMeshArray, get access to the corresponding registered
+                    // Material and Mesh IDs
+                    BRGRenderMeshArray brgRenderMeshArray = default;
+                    if (!brgRenderMeshArrays.IsEmpty)
+                    {
+                        int renderMeshArrayIndex = EntityManager.GetChunk(e).GetSharedComponentIndex(renderMeshArrayHandle);
+                        bool hasRenderMeshArray = renderMeshArrayIndex >= 0;
+                        if (hasRenderMeshArray)
+                            brgRenderMeshArrays.TryGetValue(renderMeshArrayIndex, out brgRenderMeshArray);
+                    }
 
-                    Assert.IsFalse(meshID == BatchMeshID.Null);
+                    BatchMeshID meshID = materialMeshInfo.IsRuntimeMesh
+                            ? materialMeshInfo.MeshID
+                            : brgRenderMeshArray.GetMeshID(materialMeshInfo);
+
+                    if (meshID == BatchMeshID.Null)
+                        return;
 
                     // Mesh is already registered.
                     if (TryGetSharedMeshData(meshID, out var data))
@@ -433,27 +450,44 @@ namespace Unity.Rendering
 
             var meshes = m_MeshIDs;
             var count = new NativeArray<int>(meshes.Length, Allocator.TempJob);
+            var sharedMeshes = m_SharedMeshData;
 
-            Dependency = Entities
+            // For now assume every mesh is visible & active.
+            Dependency = Job
                 .WithName("CountActiveMeshes")
-                .WithAll<DeformedEntity>().WithAll<SharedMeshTracker>()
-                .WithReadOnly(meshes)
-                .WithNativeDisableParallelForRestriction(count)
-                .ForEach((in MaterialMeshInfo id) =>
+                .WithReadOnly(meshes).WithReadOnly(sharedMeshes)
+                .WithCode(() =>
                 {
-                    if (id.MeshID == BatchMeshID.Null)
-                        return;
-
-                    var meshID = id.MeshID;
-                    var index = meshes.IndexOf(meshID);
-
-                    // For now assume every mesh is visible & active.
-
-                    unsafe
+                    for (int i = 0; i < sharedMeshes.Length; i++)
                     {
-                        Interlocked.Increment(ref UnsafeUtility.ArrayElementAsRef<int>(count.GetUnsafePtr(), index));
+                        var sharedMesh = sharedMeshes[i];
+                        var meshId = sharedMesh.MeshID;
+                        var index = meshes.IndexOf(meshId);
+                        count[index] = sharedMesh.RefCount;
                     }
-                }).ScheduleParallel(Dependency);
+                }).Schedule(Dependency);
+
+            //Dependency = Entities
+            //    .WithName("CountActiveMeshes")
+            //    .WithAll<DeformedEntity>().WithAll<SharedMeshTracker>()
+            //    .WithReadOnly(meshes)
+            //    .WithNativeDisableParallelForRestriction(count)
+            //    .ForEach((in MaterialMeshInfo id) =>
+            //    {
+            //        var meshID = id.MeshID;
+
+            //        if (meshID == BatchMeshID.Null)
+            //            return;
+
+            //        var index = meshes.IndexOf(meshID);
+
+            //        // For now assume every mesh is visible & active.
+
+            //        unsafe
+            //        {
+            //            Interlocked.Increment(ref UnsafeUtility.ArrayElementAsRef<int>(count.GetUnsafePtr(), index));
+            //        }
+            //    }).ScheduleParallel(Dependency);
 
             k_CollectActiveMeshes.End();
             k_OutputCountBuffer.Begin();
@@ -461,7 +495,6 @@ namespace Unity.Rendering
             var vertexCountRef = m_MeshVertexCount;
             var shapeWeightCountRef = m_BlendShapeWeightCount;
             var skinMatrixCountRef = m_SkinMatrixCount;
-            var sharedMeshes = m_SharedMeshData;
             var batches = DeformationBatches;
             batches.Clear();
 
@@ -511,13 +544,18 @@ namespace Unity.Rendering
 
             m_BatchConstructionHandle = Dependency;
 
+            var brgRenderMeshArrays = World.GetExistingSystemManaged<RegisterMaterialsAndMeshesSystem>()?.BRGRenderMeshArrays ?? new NativeParallelHashMap<int, BRGRenderMeshArray>();
+            var renderMeshArrayHandle = GetSharedComponentTypeHandle<RenderMeshArray>();
+
             Dependency = new LayoutDeformedMeshJob
             {
                 DeformedMeshIndexHandle = GetComponentTypeHandle<DeformedMeshIndex>(),
                 BlendWeightBufferIndexHandle = GetComponentTypeHandle<BlendWeightBufferIndex>(),
                 SkinMatrixBufferIndexHandle = GetComponentTypeHandle<SkinMatrixBufferIndex>(),
+                RenderMeshArrayHandle = renderMeshArrayHandle,
                 MaterialMeshInfoHandle = GetComponentTypeHandle<MaterialMeshInfo>(),
                 BatchData = DeformationBatches,
+                BRGRenderMeshArrays = brgRenderMeshArrays,
                 SharedMeshData = m_SharedMeshData.AsArray(),
                 MeshIDs = m_MeshIDs.AsArray(),
                 MeshCounts = count,
@@ -547,11 +585,13 @@ namespace Unity.Rendering
             public ComponentTypeHandle<BlendWeightBufferIndex> BlendWeightBufferIndexHandle;
             public ComponentTypeHandle<SkinMatrixBufferIndex> SkinMatrixBufferIndexHandle;
 
+            [ReadOnly] public SharedComponentTypeHandle<RenderMeshArray> RenderMeshArrayHandle;
             [ReadOnly] public ComponentTypeHandle<MaterialMeshInfo> MaterialMeshInfoHandle;
 
             [NativeDisableContainerSafetyRestriction] public NativeArray<int> MeshCounts;
 
             [ReadOnly] public NativeParallelHashMap<BatchMeshID, MeshDeformationBatch> BatchData;
+            [ReadOnly] public NativeParallelHashMap<int, BRGRenderMeshArray> BRGRenderMeshArrays;
             [ReadOnly] public NativeArray<SharedMeshData> SharedMeshData;
             [ReadOnly] public NativeArray<BatchMeshID> MeshIDs;
 #if ENABLE_DOTS_DEFORMATION_MOTION_VECTORS
@@ -568,11 +608,27 @@ namespace Unity.Rendering
                 var skinMatrixIndices = chunk.GetNativeArray(ref SkinMatrixBufferIndexHandle);
                 var meshInfos = chunk.GetNativeArray(ref MaterialMeshInfoHandle);
 
+                // If the chunk has a RenderMeshArray, get access to the corresponding registered
+                // Material and Mesh IDs
+                BRGRenderMeshArray brgRenderMeshArray = default;
+                if (!BRGRenderMeshArrays.IsEmpty)
+                {
+                    int renderMeshArrayIndex = chunk.GetSharedComponentIndex(RenderMeshArrayHandle);
+                    bool hasRenderMeshArray = renderMeshArrayIndex >= 0;
+                    if (hasRenderMeshArray)
+                        BRGRenderMeshArrays.TryGetValue(renderMeshArrayIndex, out brgRenderMeshArray);
+                }
+
                 for (int i = 0, chunkEntityCount = chunk.Count; i < chunkEntityCount; i++)
                 {
-                    var meshID = meshInfos[i].MeshID;
+                    var materialMeshInfo = meshInfos[i];
 
-                    Assert.IsFalse(meshID == BatchMeshID.Null);
+                    var meshID = materialMeshInfo.IsRuntimeMesh
+                            ? materialMeshInfo.MeshID
+                            : brgRenderMeshArray.GetMeshID(materialMeshInfo);
+
+                    if (meshID == BatchMeshID.Null)
+                        continue;
 
                     var batchRange = BatchData[meshID];
                     var meshIndex = MeshIDs.IndexOf(meshID);

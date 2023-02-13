@@ -265,21 +265,53 @@ namespace Unity.Rendering
 
     internal unsafe struct CullingSplits
     {
-        [ReadOnly] public UnsafeList<Plane> BackfacingReceiverPlanes;
-        [ReadOnly] public UnsafeList<FrustumPlanes.PlanePacket4> SplitPlanePackets;
-        [ReadOnly] public UnsafeList<FrustumPlanes.PlanePacket4> ReceiverPlanePackets;
-        [ReadOnly] public UnsafeList<FrustumPlanes.PlanePacket4> CombinedSplitAndReceiverPlanePackets;
-        [ReadOnly] public UnsafeList<CullingSplitData> Splits;
-        [ReadOnly] public SOASphereTest SplitSOASphereTest;
+        public UnsafeList<Plane> BackfacingReceiverPlanes;
+        public UnsafeList<FrustumPlanes.PlanePacket4> SplitPlanePackets;
+        public UnsafeList<FrustumPlanes.PlanePacket4> ReceiverPlanePackets;
+        public UnsafeList<FrustumPlanes.PlanePacket4> CombinedSplitAndReceiverPlanePackets;
+        public UnsafeList<CullingSplitData> Splits;
+        public SOASphereTest SplitSOASphereTest;
 
         public float3 LightAxisX;
         public float3 LightAxisY;
         public bool SphereTestEnabled;
 
-        public CullingSplits(
-            ref BatchCullingContext cullingContext,
+        public static CullingSplits Create(BatchCullingContext* cullingContext, ShadowProjection shadowProjection, AllocatorManager.AllocatorHandle allocator)
+        {
+            CullingSplits cullingSplits = default;
+
+            var createJob = new CreateJob
+            {
+                cullingContext = cullingContext,
+                shadowProjection = shadowProjection,
+                allocator = allocator,
+                Splits = &cullingSplits
+            };
+            createJob.Run();
+
+            return cullingSplits;
+        }
+
+        [BurstCompile]
+        private struct CreateJob : IJob
+        {
+            [NativeDisableUnsafePtrRestriction]
+            [ReadOnly] public BatchCullingContext* cullingContext;
+            [ReadOnly] public ShadowProjection shadowProjection;
+            [ReadOnly] public AllocatorManager.AllocatorHandle allocator;
+
+            [NativeDisableUnsafePtrRestriction]
+            public CullingSplits* Splits;
+
+            public void Execute()
+            {
+                *Splits = new CullingSplits(ref *cullingContext, shadowProjection, allocator);
+            }
+        }
+
+        private CullingSplits(ref BatchCullingContext cullingContext,
             ShadowProjection shadowProjection,
-            RewindableAllocator* allocator)
+            AllocatorManager.AllocatorHandle allocator)
         {
             BackfacingReceiverPlanes = default;
             SplitPlanePackets = default;
@@ -292,13 +324,11 @@ namespace Unity.Rendering
             LightAxisY = default;
             SphereTestEnabled = false;
 
-            var allocatorHandle = allocator->Handle;
-
             // Initialize receiver planes first, so they are ready to be combined in
             // InitializeSplits
-            InitializeReceiverPlanes(ref cullingContext, allocatorHandle);
-            InitializeSplits(ref cullingContext, allocatorHandle);
-            InitializeSphereTest(ref cullingContext, shadowProjection, allocatorHandle);
+            InitializeReceiverPlanes(ref cullingContext, allocator);
+            InitializeSplits(ref cullingContext, allocator);
+            InitializeSphereTest(ref cullingContext, shadowProjection, allocator);
         }
 
         private void InitializeReceiverPlanes(ref BatchCullingContext cullingContext, AllocatorManager.AllocatorHandle allocator)
@@ -403,10 +433,6 @@ namespace Unity.Rendering
             int planeIndex = 0;
             int combinedPlaneIndex = 0;
 
-            // In the special case where there is only a single split with zero planes, compute culling planes
-            // based on the culling matrix.
-            bool noSplitPlanes = numSplits == 1 && cullingSplits[0].cullingPlaneCount == 0;
-
             for (int i = 0; i < numSplits; ++i)
             {
                 int splitIndex = i;
@@ -422,9 +448,6 @@ namespace Unity.Rendering
                     r = 0;
 
                 var splitCullingPlanes = cullingPlanes.GetSubArray(s.cullingPlaneOffset, s.cullingPlaneCount);
-
-                if (noSplitPlanes)
-                    splitCullingPlanes = CullingPlanesFromMatrix(s.cullingMatrix);
 
                 var planePackets = FrustumPlanes.BuildSOAPlanePackets(
                     splitCullingPlanes,
@@ -466,14 +489,6 @@ namespace Unity.Rendering
                 planeIndex += planePackets.Length;
                 combinedPlaneIndex += combined.Length;
             }
-        }
-
-        private static Plane[] s_CullingPlanes = new Plane[6];
-        private static NativeArray<Plane> CullingPlanesFromMatrix(Matrix4x4 cullingMatrix)
-        {
-            GeometryUtility.CalculateFrustumPlanes(cullingMatrix, s_CullingPlanes);
-            var planeArray = new NativeArray<Plane>(s_CullingPlanes, Allocator.Temp);
-            return planeArray;
         }
 
         private void InitializeSphereTest(ref BatchCullingContext cullingContext, ShadowProjection shadowProjection, AllocatorManager.AllocatorHandle allocator)

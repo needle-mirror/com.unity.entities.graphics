@@ -9,7 +9,7 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class HDRPMaterialPropertyAORemapMaxAuthoring : UnityEngine.MonoBehaviour
     {
-        [RegisterBinding(typeof(HDRPMaterialPropertyAORemapMax), "Value")]
+        [RegisterBinding(typeof(HDRPMaterialPropertyAORemapMax), nameof(HDRPMaterialPropertyAORemapMax.Value))]
         public float Value;
 
         class HDRPMaterialPropertyAORemapMaxBaker : Baker<HDRPMaterialPropertyAORemapMaxAuthoring>

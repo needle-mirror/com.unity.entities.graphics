@@ -41,23 +41,10 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnUpdate()
         {
-            var ambientProbe = RenderSettings.ambientProbe;
-
             if (IsValidLightProbeGrid())
             {
                 UpdateEntitiesFromGrid();
             }
-
-            // Update the global ambient probe. If there is no valid grid, BlendProbeTag
-            // entities will have their SH components deleted and will also fall back
-            // to this.
-            UpdateGlobalAmbientProbe(ambientProbe);
-        }
-
-        private void UpdateGlobalAmbientProbe(SphericalHarmonicsL2 ambientProbe)
-        {
-            var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
-            entitiesGraphicsSystem?.UpdateGlobalAmbientProbe(new SHCoefficients(ambientProbe));
         }
 
         private static void UpdateEntitiesFromAmbientProbe(

@@ -8,7 +8,6 @@ using UnityEngine.Rendering;
 
 namespace Unity.Rendering
 {
-
     [TemporaryBakingType]
     struct MeshRendererBakingData : IComponentData
     {
@@ -36,6 +35,8 @@ namespace Unity.Rendering
             authoring.GetSharedMaterials(sharedMaterials);
 
             MeshRendererBakingUtility.Convert(this, authoring, mesh, sharedMaterials, true, out var additionalEntities);
+
+            DependsOnLightBaking();
 
             if(additionalEntities.Count == 0)
                 AddComponent(new MeshRendererBakingData{ MeshRenderer = authoring });
@@ -109,40 +110,35 @@ namespace Unity.Rendering
 
             if (m_LightMapBakingContext != null)
             {
-                Entities.ForEach((in MeshRendererBakingData authoring) =>
+                foreach (var authoring in SystemAPI.Query<RefRO<MeshRendererBakingData>>()
+                             .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities))
                 {
-                    context.CollectLightMapUsage(authoring.MeshRenderer);
-                })
-                .WithEntityQueryOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
-                .WithoutBurst()
-                .WithStructuralChanges()
-                .Run();
+                    context.CollectLightMapUsage(authoring.ValueRO.MeshRenderer);
+                }
             }
 
             context.ProcessLightMapsForConversion();
 
             var ecb = new EntityCommandBuffer(Allocator.TempJob);
-            Entities.ForEach((Entity entity, RenderMesh renderMesh, in MeshRendererBakingData authoring) =>
+            foreach (var (renderMesh, authoring, entity) in SystemAPI.Query<RenderMesh, RefRO<MeshRendererBakingData>>()
+                         .WithEntityAccess()
+                         .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities))
             {
-                Renderer renderer = authoring.MeshRenderer;
+                Renderer renderer = authoring.ValueRO.MeshRenderer;
 
+                var sharedComponentRenderMesh = renderMesh;
                 var lightmappedMaterial = context.ConfigureHybridLightMapping(
                     entity,
                     ecb,
                     renderer,
-                    renderMesh.material);
+                    sharedComponentRenderMesh.material);
 
                 if (lightmappedMaterial != null)
                 {
-                    renderMesh.material = lightmappedMaterial;
-                    ecb.SetSharedComponentManaged(entity, renderMesh);
+                    sharedComponentRenderMesh.material = lightmappedMaterial;
+                    ecb.SetSharedComponentManaged(entity, sharedComponentRenderMesh);
                 }
-
-            })
-            .WithEntityQueryOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
-            .WithoutBurst()
-            .WithStructuralChanges()
-            .Run();
+            }
 
             context.EndConversion();
 
@@ -244,6 +240,8 @@ namespace Unity.Rendering
                     Renderer authoring = null;
                     if (EntityManager.HasComponent<MeshRendererBakingData>(e))
                         authoring = EntityManager.GetComponentData<MeshRendererBakingData>(e).MeshRenderer.Value;
+                    else if (EntityManager.HasComponent<SkinnedMeshRendererBakingData>(e))
+                        authoring = EntityManager.GetComponentData<SkinnedMeshRendererBakingData>(e).SkinnedMeshRenderer.Value;
 
                     string entityDebugString = authoring is null
                         ? e.ToString()

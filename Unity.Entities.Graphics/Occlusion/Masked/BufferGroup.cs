@@ -165,7 +165,8 @@ namespace Unity.Rendering.Occlusion.Masked
                 return;
             }
 
-            if (m_DebugView == null)
+            bool refresh = (m_DebugView == null);
+            if (refresh)
             {
                 m_DebugView = new DebugView();
             }
@@ -177,6 +178,11 @@ namespace Unity.Rendering.Occlusion.Masked
             Profiler.BeginSample("Occlusion.Debug.RenderView");
             m_DebugView.RenderToTextures(testQuery, meshQuery, this, mode, OcclusionBrowseWindow.IsVisible);
             Profiler.EndSample();
+
+            if (refresh)
+            {
+                OcclusionBrowseWindow.Refresh();
+            }
 #endif
         }
 

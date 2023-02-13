@@ -582,7 +582,12 @@ namespace Unity.Rendering
                     case GraphicsDeviceType.GameCoreXboxOne:
                     case GraphicsDeviceType.GameCoreXboxSeries:
                     case GraphicsDeviceType.OpenGLCore:
+
+                    // OpenGL ES 2.0 is no longer supported in Unity 2023.1 and later
+#if !UNITY_2023_1_OR_NEWER
                     case GraphicsDeviceType.OpenGLES2:
+#endif
+
                     case GraphicsDeviceType.OpenGLES3:
                     case GraphicsDeviceType.PlayStation5NGGC:
                         numFrames = 3;
@@ -744,7 +749,9 @@ namespace Unity.Rendering
 
             m_FrameData.Add(frameData);
 
-            m_MappedBuffers.Dispose();
+            if (m_MappedBuffers.IsCreated)
+                m_MappedBuffers.Dispose();
+
 
             StepFrame();
         }

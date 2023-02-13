@@ -54,14 +54,14 @@ You can create your own custom Shader Graph properties, and expose them to DOTS 
 For the DOTS IComponentData struct, use the `MaterialProperty` Attribute, passing in the **Reference** and type for the Shader Graph property. For example, the IComponentData for the color (float4) property in the above step would be:
 
 ```
-[MaterialProperty("_Color", MaterialPropertyFormat.Float4)]
+[MaterialProperty("_Color")]
 public struct MyOwnColor : IComponentData
 {
    public float4 Value;
 }
 ```
 
-Ensure that the *Reference* name in Shader Graph and the string name in MaterialProperty attribute match exactly. The type declared in the MaterialPropertyFormat should also be compatible with both the Shader Graph and the struct data layout. If the binary size doesn't match, you will see an error message in the console window.
+Ensure that the **Reference** name in Shader Graph and the string name in MaterialProperty attribute match exactly.
 
 ### Burst C# system
 

@@ -125,13 +125,18 @@ namespace Unity.Rendering
         public override void Bake(HDAdditionalLightData authoring)
         {
             var light = GetComponent<Light>();
+            // A disabled light component won't be added to the companion GameObject,
+            // other components that require the light component should not be added either.
+            if (light.enabled)
+            {
 #if UNITY_EDITOR
-            var isBaking = light.lightmapBakeType == LightmapBakeType.Baked;
-            if(!isBaking)
-                AddComponentObject(authoring);
+                var isBaking = light.lightmapBakeType == LightmapBakeType.Baked;
+                if(!isBaking)
+                    AddComponentObject(authoring);
 #else
-            AddComponentObject(authoring);
+                AddComponentObject(authoring);
 #endif
+            }
         }
     }
 
@@ -183,13 +188,19 @@ namespace Unity.Rendering
         public override void Bake(UniversalAdditionalLightData authoring)
         {
             var light = GetComponent<Light>();
+
+            // A disabled light component won't be added to the companion GameObject,
+            // other components that require the light component should not be added either.
+            if (light.enabled)
+            {
 #if UNITY_EDITOR
-            var isBaking = light.lightmapBakeType == LightmapBakeType.Baked;
-            if(!isBaking)
-                AddComponentObject(authoring);
+                var isBaking = light.lightmapBakeType == LightmapBakeType.Baked;
+                if (!isBaking)
+                    AddComponentObject(authoring);
 #else
             AddComponentObject(authoring);
 #endif
+            }
         }
     }
 #endif

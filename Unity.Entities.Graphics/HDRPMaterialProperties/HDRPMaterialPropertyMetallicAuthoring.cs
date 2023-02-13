@@ -9,7 +9,7 @@ namespace Unity.Rendering
     [UnityEngine.DisallowMultipleComponent]
     public class HDRPMaterialPropertyMetallicAuthoring : UnityEngine.MonoBehaviour
     {
-        [RegisterBinding(typeof(HDRPMaterialPropertyMetallic), "Value")]
+        [RegisterBinding(typeof(HDRPMaterialPropertyMetallic), nameof(HDRPMaterialPropertyMetallic.Value))]
         public float Value;
 
         class HDRPMaterialPropertyMetallicBaker : Baker<HDRPMaterialPropertyMetallicAuthoring>
