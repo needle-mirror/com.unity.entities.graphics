@@ -18,7 +18,8 @@ namespace Unity.Rendering
             {
                 HDRPMaterialPropertyAORemapMax component = default(HDRPMaterialPropertyAORemapMax);
                 component.Value = authoring.Value;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, component);
             }
         }
     }

@@ -8,7 +8,7 @@ namespace Unity.Rendering
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
     [UpdateInGroup(typeof(PresentationSystemGroup)), UpdateAfter(typeof(RegisterMaterialsAndMeshesSystem)), UpdateBefore(typeof(EntitiesGraphicsSystem))]
-    public sealed class DeformationsInPresentation : ComponentSystemGroup
+    public sealed partial class DeformationsInPresentation : ComponentSystemGroup
     {
         /// <inheritdoc/>
         protected override void OnCreate()

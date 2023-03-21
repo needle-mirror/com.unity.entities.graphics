@@ -20,7 +20,8 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
             if (authoring.allowOcclusionWhenDynamic)
             {
                 // Add the tag component, which is then picked up by our baking system
-                AddComponent(new ProcessThisOccludee());
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, new ProcessThisOccludee());
             }
         }
     }

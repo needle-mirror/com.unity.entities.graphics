@@ -11,7 +11,7 @@ namespace Unity.Rendering
     /// </remarks>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.EntitySceneOptimizations | WorldSystemFilterFlags.Editor)]
-    public class StructuralChangePresentationSystemGroup : ComponentSystemGroup
+    public partial class StructuralChangePresentationSystemGroup : ComponentSystemGroup
     {
     }
 }

@@ -1,7 +1,15 @@
----
-uid: changelog
----
 # Changelog
+
+## [1.0.0-pre.65] - 2023-03-21
+
+### Added
+
+* Burst Occlusion Culling occlusion browser tool
+
+### Changed
+
+* Disable Entities Graphics error message if there is no active SRP.
+
 
 ## [1.0.0-pre.44] - 2023-02-13
 
@@ -32,7 +40,6 @@ uid: changelog
 * Fixed global ambient probe when multiple cameras are present with HDRP
 * Light baking will cause the MeshRenderers to bake, thus automatically updating the light map in the entities scene. This previously required forcing the reimport of the entity scene.
 * 'GraphicsDeviceType.OpenGLES2' is obsolete: 'OpenGL ES 2.0 is no longer supported in Unity 2023.1'
-
 
 ## [1.0.0-pre.15] - 2022-11-16
 
@@ -66,7 +73,7 @@ uid: changelog
 * Fixed an issue where Entities Graphics would cause issues with the device being able to idle.
 
 
-## [1.0.0-exp.8] - 2022-09-21
+## [1.0.0-epx.8] - 2022-09-21
 
 ### Added
 

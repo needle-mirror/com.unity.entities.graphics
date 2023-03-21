@@ -21,7 +21,7 @@ Note that the conversion of Camera (+HDAdditionalCameraData, UniversalAdditional
 
 Unity updates the transform of a hybrid entity whenever it updates the DOTS LocalToWorld component. Parenting a hybrid entity to a standard DOTS entity is supported. Hybrid entities can be included in DOTS subscenes. The managed component is serialized in the DOTS subscene.
 
-You can write DOTS ECS queries including both IComponentData and managed hybrid components. However, these queries cannot be Burst compiled and must run in the main thread, as managed components are not thread safe. Use WithoutBurst(), and call .Run() instead of .Schedule().
+You can write DOTS ECS queries including both IComponentData and managed hybrid components. However, these queries cannot be Burst compiled and must run in the main thread because managed components aren't thread-safe. To do this, use `foreach()` without the [BurstCompile] flag instead of an [IJobEntity](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Entities.IJobEntity.html) with .Schedule().
 
 An example of setting HDRP Light component intensity:
 
@@ -30,11 +30,10 @@ class AnimateHDRPIntensitySystem : SystemBase
 {
     protected override void OnUpdate()
     {
-        Entities.WithoutBurst().ForEach((HDLightAdditionalData hdLight) =>
-            {
-                hdLight.intensity = 1.5f;
-            })
-            .Run();
+        foreach(var hdLight in SystemAPI.Query<RefRW<HDLightAdditionalData>>())
+        {
+            hdLight.ValueRW.intensity = 1.5f;
+        }
     }
 }
 ```

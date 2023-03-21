@@ -65,13 +65,11 @@ namespace Unity.Rendering
             return m_DataBufferPool.GetBufferFromId(m_CurrentFrameBufferID);
         }
 
-        // todo: improve the behavior here (GFXMESH-62).
         public void ResizeBuffer(int size, int stride)
         {
             m_FrameData.Clear();
 
             m_DataBufferPool?.Dispose();
-
             m_DataBufferPool = new BufferPool(size, stride, GraphicsBuffer.Target.Raw, GraphicsBuffer.UsageFlags.LockBufferForWrite);
 
             BufferSize = size;

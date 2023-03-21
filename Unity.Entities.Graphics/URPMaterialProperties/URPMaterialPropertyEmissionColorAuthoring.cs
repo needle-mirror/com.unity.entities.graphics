@@ -29,7 +29,8 @@ namespace Unity.Rendering
                 colorValues.z = authoring.color.b;
                 colorValues.w = authoring.color.a;
                 component.Value = colorValues;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Renderable);
+                AddComponent(entity, component);
             }
         }
     }

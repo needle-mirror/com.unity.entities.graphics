@@ -8,7 +8,7 @@ namespace Unity.Rendering
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [UpdateAfter(typeof(StructuralChangePresentationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.EntitySceneOptimizations | WorldSystemFilterFlags.Editor)]
-    public class UpdatePresentationSystemGroup : ComponentSystemGroup
+    public partial class UpdatePresentationSystemGroup : ComponentSystemGroup
     {
     }
 }

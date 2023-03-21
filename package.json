@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.0.0-pre.44",
+  "version": "1.0.0-pre.65",
   "unity": "2022.2",
   "unityRelease": "2f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.0.0-pre.44",
+    "com.unity.entities": "1.0.0-pre.65",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.6"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Added\n\n* Optimize OnPerformCulling by computing the CullingSplits from a main thread Burst job.\n* EntitiesGraphicsSystem.GetMesh and EntitiesGraphicsSystem.GetMaterial are now public.\n* Warning in-editor when using Entities.Graphics and URP that Forward+ rendering path should be used.\n\n### Changed\n\n* Removed async readback from deformations and replaced with fixed number of frames.\n* The built-in properties for URP has been changed so that they have a slider for most values between 0-1. Relevant properties have also been changed from using a float4 for color in the inspector to use a color property instead.\n* `PushBlendWeightSystem.cs`, `PushSkinMatrixSystem.cs`, `MeshRendererBaking.cs` script files have been updated to the latest idiomatic `foreach()`.\n* Changed skin matrix / blend shape weight access in CopyBlendShapeWeightsToGPUJob and CopySkinMatricesToGPUJob to readonly.\n* Improved `SkinnedMeshRenderer` baking performance\n* Updated com.unity.render-pipelines.core dependency from 14.0.4 to 14.0.6\n\n### Removed\n\n * Removed RemapMaterialMeshIndexJob. Both array indices and runtime IDs are now directly supported for MaterialMeshInfo.\n\n### Fixed\n\n* Occlusion browser not being updated properly in play mode.\n* Only call UpdateAllBatches if there are entities graphics chunks\n* Fixed a bug with Baked Lights inside subscenes, where the bakingOutput of such Lights was not updated correctly.\n* Fixed global ambient probe when multiple cameras are present with HDRP\n* Light baking will cause the MeshRenderers to bake, thus automatically updating the light map in the entities scene. This previously required forcing the reimport of the entity scene.\n* 'GraphicsDeviceType.OpenGLES2' is obsolete: 'OpenGL ES 2.0 is no longer supported in Unity 2023.1'"
+    "changelog": "### Added\n\n* Burst Occlusion Culling occlusion browser tool\n\n### Changed\n\n* Disable Entities Graphics error message if there is no active SRP."
   },
   "upmCi": {
-    "footprint": "36cf9c3e9000b35de661843f4e4d150f99fbca3c"
+    "footprint": "ccf6c26f75c90aeefbd73f32ae087fa743a9640a"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "0e572178431e16c09c6c434c873bf0c60e52a5e9"
+    "revision": "85530c484ef7afedc5b128081152ec5e1f6f30e2"
   }
 }

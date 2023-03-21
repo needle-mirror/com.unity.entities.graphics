@@ -27,13 +27,13 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                 {
                     for (int i = 0; i < authoring.mesh.subMeshCount; i++)
                     {
-                        Entity entity = CreateAdditionalEntity();
+                        Entity entity = CreateAdditionalEntity(TransformUsageFlags.Dynamic);
                         AddOccluderComponent(entity, authoring, i);
                     }
                 }
                 else
                 {
-                    Entity entity = GetEntity(authoring);
+                    Entity entity = GetEntity(authoring, TransformUsageFlags.Dynamic);
                     AddOccluderComponent(entity, authoring, 0);
                 }
 

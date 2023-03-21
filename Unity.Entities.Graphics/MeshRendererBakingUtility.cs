@@ -20,7 +20,7 @@ namespace Unity.Rendering
             // LODGroup
             lodState = new LODState();
             lodState.LodGroup = baker.GetComponentInParent<LODGroup>();
-            lodState.LodGroupEntity = baker.GetEntity(lodState.LodGroup);
+            lodState.LodGroupEntity = baker.GetEntity(lodState.LodGroup, TransformUsageFlags.Renderable);
             lodState.LodGroupIndex = FindInLODs(lodState.LodGroup, authoringSource);
         }
 
@@ -132,7 +132,7 @@ namespace Unity.Rendering
         {
             CreateLODState(baker, renderer, out var lodState);
 
-            var entity = baker.GetEntity(renderer);
+            var entity = baker.GetEntity(renderer, TransformUsageFlags.Renderable);
 
             AddRendererComponents(entity, baker, renderMeshDescription, renderMesh);
 
@@ -162,7 +162,7 @@ namespace Unity.Rendering
                 Entity meshEntity;
                 if (root == null)
                 {
-                    meshEntity = baker.CreateAdditionalEntity(TransformUsageFlags.Default, false, $"{baker.GetName()}-MeshRendererEntity");
+                    meshEntity = baker.CreateAdditionalEntity(TransformUsageFlags.Renderable, false, $"{baker.GetName()}-MeshRendererEntity");
 
                     // Update Transform components:
                     baker.AddComponent<AdditionalMeshRendererEntity>(meshEntity);
@@ -173,19 +173,14 @@ namespace Unity.Rendering
 
                     var localToWorld = root.localToWorldMatrix;
                     baker.AddComponent(meshEntity, new LocalToWorld {Value = localToWorld});
-#if !ENABLE_TRANSFORM_V1
+
                     // TODO(DOTS-7063): FromMatrix should throw here if the matrix is unrepresentable as TransformData.
-                    baker.AddComponent(meshEntity,
-                        LocalTransform.FromMatrix(localToWorld));
-#endif
+                    baker.AddComponent(meshEntity, LocalTransform.Identity);
 
                     if (!baker.IsStatic())
                     {
-                        var rootEntity = baker.GetEntity(root);
+                        var rootEntity = baker.GetEntity(root, TransformUsageFlags.Renderable);
                         baker.AddComponent(meshEntity, new Parent {Value = rootEntity});
-#if ENABLE_TRANSFORM_V1
-                        baker.AddComponent(meshEntity, new LocalToParent {Value = float4x4.identity});
-#endif
                     }
                 }
 

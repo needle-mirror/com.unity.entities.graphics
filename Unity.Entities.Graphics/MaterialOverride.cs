@@ -29,7 +29,7 @@ class Helper<T> : IHelper where T : unmanaged, IComponentData
 [ExecuteInEditMode]
 public class MaterialOverride : MonoBehaviour
 {
-    
+
     /// <summary>
     /// The material asset to override.
     /// </summary>
@@ -140,7 +140,7 @@ class MaterialOverrideBaker : Baker<MaterialOverride>
                 {
                     var overrideTypeIndex = TypeManager.GetTypeIndex(overrideType);
                     var typeInfo = TypeManager.GetTypeInfo(overrideTypeIndex);
-                    var entity = GetEntity(authoring);
+                    var entity = GetEntity(authoring, TransformUsageFlags.Renderable);
                     int dataSize = 0;
                     var componentData = UnsafeUtility.Malloc(typeInfo.TypeSize, typeInfo.AlignmentInBytes, Allocator.Temp);
 

@@ -61,8 +61,13 @@ namespace Unity.Rendering
             return false;
         }
 
+        static bool IsScriptableRenderPipelineUsed() => GraphicsSettings.currentRenderPipeline != null;
+
         public static bool IsEntitiesGraphicsSupportedOnSystem()
         {
+            if (!IsScriptableRenderPipelineUsed())
+                return false;
+
             var deviceType = SystemInfo.graphicsDeviceType;
 
             bool isOpenGL = deviceType == GraphicsDeviceType.OpenGLCore ||

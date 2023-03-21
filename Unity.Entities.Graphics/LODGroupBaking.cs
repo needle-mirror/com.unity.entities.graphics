@@ -33,6 +33,7 @@ class LODGroupBaker : Baker<LODGroup>
         lodGroupData.LODDistances0 = lodDistances0;
         lodGroupData.LODDistances1 = lodDistances1;
 
-        AddComponent(lodGroupData);
+        var entity = GetEntity(TransformUsageFlags.Renderable);
+        AddComponent(entity, lodGroupData);
     }
 }

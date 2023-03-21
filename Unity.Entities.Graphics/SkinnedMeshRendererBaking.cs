@@ -56,9 +56,10 @@ namespace Unity.Rendering
 
             var hasSkinning = mesh == null ? false : mesh.boneWeights.Length > 0 && mesh.bindposeCount > 0;
             var hasBlendShapes = mesh == null ? false : mesh.blendShapeCount > 0;
-            var deformedEntity = GetEntity();
+            var deformedEntity = GetEntity(TransformUsageFlags.Dynamic);
             foreach (var entity in additionalEntities)
             {
+               AddTransformUsageFlags(entity, TransformUsageFlags.Dynamic);
                // Add relevant deformation tags to converted render entities and link them to the DeformedEntity.
                AddComponent(entity, new DeformedMeshIndex());
                AddComponent(entity, new DeformedEntity {Value = deformedEntity});

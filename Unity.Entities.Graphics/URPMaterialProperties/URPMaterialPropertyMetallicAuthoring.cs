@@ -22,7 +22,8 @@ namespace Unity.Rendering
             {
                 Unity.Rendering.URPMaterialPropertyMetallic component = default(Unity.Rendering.URPMaterialPropertyMetallic);
                 component.Value = authoring.Value;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Renderable);
+                AddComponent(entity, component);
             }
         }
     }

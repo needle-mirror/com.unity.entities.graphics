@@ -1,4 +1,4 @@
-* [Entities Graphics](index.md)
+* [Entities Graphics package](index.md)
   * [What's new](whats-new.md)
   * [Upgrade guide](upgrade-guide.md)
 * [Requirements](requirements-and-compatibility.md)
@@ -12,10 +12,19 @@
     * [Material Overrides Using an Asset](material-overrides-asset.md)
   * [Hybrid Entities](hybrid-entities.md)
   * [The BatchRendererGroup API](batch-renderer-group-api.md)
-* Animation
   * [Mesh deformations](mesh_deformations.md)
+* [Burst occlusion culling](burst-occlusion-culling.md)
+  * [Requirements and compatibility](burst-occlusion-culling-requirements.md)
+  * [Overview](burst-occlusion-culling-overview.md)
+  * [Setup](burst-occlusion-culling-setup.md)
+  * [Optimize occlusion culling](burst-occlusion-culling-optimize.md)
+  * [Rendering Debugger Culling tab reference](burst-occlusion-culling-debug.md)
+  * [Components](burst-occlusion-culling-components.md)
+    * [Occluder component](burst-occlusion-culling-components-occluder.md)
+    * [Occlusion View component](burst-occlusion-culling-components-occlusion-view.md)
 * [Runtime Usage](runtime-usage.md)
   * [Runtime Entity Creation](runtime-entity-creation.md)
 * Sample Content
   * [Sample Projects](sample-projects.md)
+* [Known Issues](known-issues.md)
 

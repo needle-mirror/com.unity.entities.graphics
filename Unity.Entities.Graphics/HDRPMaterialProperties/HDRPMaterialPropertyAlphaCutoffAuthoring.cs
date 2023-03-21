@@ -18,7 +18,8 @@ namespace Unity.Rendering
             {
                 var component = default(HDRPMaterialPropertyAlphaCutoff);
                 component.Value = authoring.Value;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, component);
             }
         }
     }

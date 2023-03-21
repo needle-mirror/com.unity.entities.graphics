@@ -21,7 +21,8 @@ namespace Unity.Rendering
             {
                 Unity.Rendering.URPMaterialPropertyBumpScale component = default(Unity.Rendering.URPMaterialPropertyBumpScale);
                 component.Value = authoring.Value;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Renderable);
+                AddComponent(entity, component);
             }
         }
     }

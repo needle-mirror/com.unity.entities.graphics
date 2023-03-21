@@ -22,7 +22,8 @@ namespace Unity.Rendering
             {
                 Unity.Rendering.URPMaterialPropertySmoothness component = default(Unity.Rendering.URPMaterialPropertySmoothness);
                 component.Value = authoring.Value;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Renderable);
+                AddComponent(entity, component);
             }
         }
     }

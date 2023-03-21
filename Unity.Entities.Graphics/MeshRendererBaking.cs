@@ -38,8 +38,11 @@ namespace Unity.Rendering
 
             DependsOnLightBaking();
 
-            if(additionalEntities.Count == 0)
-                AddComponent(new MeshRendererBakingData{ MeshRenderer = authoring });
+            if (additionalEntities.Count == 0)
+            {
+                var mainEntity = GetEntity(TransformUsageFlags.Renderable);
+                AddComponent(mainEntity, new MeshRendererBakingData {MeshRenderer = authoring});
+            }
 
             foreach (var entity in additionalEntities)
             {
@@ -60,13 +63,7 @@ namespace Unity.Rendering
         {
             ComponentType[] typesToFilter = new[]
             {
-#if !ENABLE_TRANSFORM_V1
-                ComponentType.ReadOnly<PostTransformScale>(),
-#else
-                ComponentType.ReadOnly<Translation>(),
-                ComponentType.ReadOnly<Rotation>(),
-                ComponentType.ReadOnly<NonUniformScale>(),
-#endif
+                ComponentType.ReadOnly<PostTransformMatrix>(),
             };
             typesToFilterSet = new ComponentTypeSet(typesToFilter);
 

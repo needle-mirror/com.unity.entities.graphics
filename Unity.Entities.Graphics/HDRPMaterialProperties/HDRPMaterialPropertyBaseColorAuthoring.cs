@@ -19,7 +19,8 @@ namespace Unity.Rendering
             {
                 var component = default(HDRPMaterialPropertyBaseColor);
                 component.Value = authoring.Value;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, component);
             }
         }
     }

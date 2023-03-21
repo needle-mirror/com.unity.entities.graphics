@@ -112,7 +112,7 @@ namespace Unity.Rendering
 
                 for (int i = 0; i < m_Positions.Count; ++i)
                 {
-                    var shCoefficients = new SHCoefficients(m_LightProbes[i]);
+                    var shCoefficients = new SHCoefficients(m_LightProbes[i], m_OcclusionProbes[i]);
                     chunkSH[i] = new BuiltinMaterialPropertyUnity_SHCoefficients() {Value = shCoefficients};
                 }
             }

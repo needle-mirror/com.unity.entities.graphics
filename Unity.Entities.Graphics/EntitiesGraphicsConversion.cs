@@ -21,13 +21,15 @@ namespace Unity.Rendering
     {
         public override void Bake(Light authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
 
 #if UNITY_EDITOR
             // Explicitly store the LightBakingOutput using a component, so we can restore it
             // at runtime.
             var bakingOutput = authoring.bakingOutput;
-            AddComponent(new LightBakingOutputData {Value = bakingOutput});
+            AddComponent(entity, new LightBakingOutputData {Value = bakingOutput});
 #endif
         }
     }
@@ -36,7 +38,9 @@ namespace Unity.Rendering
     {
         public override void Bake(LightProbeProxyVolume authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -44,7 +48,9 @@ namespace Unity.Rendering
     {
         public override void Bake(ReflectionProbe authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -52,9 +58,11 @@ namespace Unity.Rendering
     {
         public override void Bake(TextMesh authoring)
         {
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
             var meshRenderer = GetComponent<MeshRenderer>();
-            AddComponentObject(authoring);
-            AddComponentObject(meshRenderer);
+            AddComponentObject(entity, authoring);
+            AddComponentObject(entity, meshRenderer);
         }
     }
 
@@ -62,7 +70,9 @@ namespace Unity.Rendering
     {
         public override void Bake(SpriteRenderer authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -70,7 +80,9 @@ namespace Unity.Rendering
     {
         public override void Bake(VisualEffect authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -79,8 +91,10 @@ namespace Unity.Rendering
         public override void Bake(ParticleSystem authoring)
         {
             var particleSystemRenderer = GetComponent<ParticleSystemRenderer>();
-            AddComponentObject(authoring);
-            AddComponentObject(particleSystemRenderer);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
+            AddComponentObject(entity, particleSystemRenderer);
         }
     }
 
@@ -88,7 +102,9 @@ namespace Unity.Rendering
     {
         public override void Bake(AudioSource authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -102,19 +118,21 @@ namespace Unity.Rendering
             var capsuleCollider = GetComponent<CapsuleCollider>();
             var meshCollider = GetComponent<MeshCollider>();
 
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
 
             if(sphereCollider != null)
-                AddComponentObject(sphereCollider);
+                AddComponentObject(entity, sphereCollider);
 
             if(boxCollider != null)
-                AddComponentObject(boxCollider);
+                AddComponentObject(entity, boxCollider);
 
             if(capsuleCollider != null)
-                AddComponentObject(capsuleCollider);
+                AddComponentObject(entity, capsuleCollider);
 
             if(meshCollider != null)
-                AddComponentObject(meshCollider);
+                AddComponentObject(entity, meshCollider);
         }
     }
 #endif
@@ -129,12 +147,14 @@ namespace Unity.Rendering
             // other components that require the light component should not be added either.
             if (light.enabled)
             {
+                // Setting companions to Dynamic
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
 #if UNITY_EDITOR
                 var isBaking = light.lightmapBakeType == LightmapBakeType.Baked;
                 if(!isBaking)
-                    AddComponentObject(authoring);
+                    AddComponentObject(entity, authoring);
 #else
-                AddComponentObject(authoring);
+                AddComponentObject(entity, authoring);
 #endif
             }
         }
@@ -144,7 +164,9 @@ namespace Unity.Rendering
     {
         public override void Bake(HDAdditionalReflectionData authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -152,7 +174,9 @@ namespace Unity.Rendering
     {
         public override void Bake(DecalProjector authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -160,7 +184,9 @@ namespace Unity.Rendering
     {
         public override void Bake(LocalVolumetricFog authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -168,7 +194,9 @@ namespace Unity.Rendering
     {
         public override void Bake(PlanarReflectionProbe authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 #if PROBEVOLUME_CONVERSION
@@ -176,7 +204,9 @@ namespace Unity.Rendering
     {
         public override void Bake(ProbeVolume authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 #endif
@@ -193,12 +223,14 @@ namespace Unity.Rendering
             // other components that require the light component should not be added either.
             if (light.enabled)
             {
+                // Setting companions to Dynamic
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
 #if UNITY_EDITOR
                 var isBaking = light.lightmapBakeType == LightmapBakeType.Baked;
                 if (!isBaking)
-                    AddComponentObject(authoring);
+                    AddComponentObject(entity, authoring);
 #else
-            AddComponentObject(authoring);
+            AddComponentObject(entity, authoring);
 #endif
             }
         }
@@ -210,7 +242,9 @@ namespace Unity.Rendering
     {
         public override void Bake(Camera authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 
@@ -219,7 +253,9 @@ namespace Unity.Rendering
     {
         public override void Bake(HDAdditionalCameraData authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 #endif
@@ -229,7 +265,9 @@ namespace Unity.Rendering
     {
         public override void Bake(UniversalAdditionalCameraData authoring)
         {
-            AddComponentObject(authoring);
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
         }
     }
 #endif

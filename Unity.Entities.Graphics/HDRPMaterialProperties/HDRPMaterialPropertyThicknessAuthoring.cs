@@ -18,7 +18,8 @@ namespace Unity.Rendering
             {
                 HDRPMaterialPropertyThickness component = default(HDRPMaterialPropertyThickness);
                 component.Value = authoring.Value;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, component);
             }
         }
     }
