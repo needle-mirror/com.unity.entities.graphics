@@ -10,7 +10,9 @@ namespace Unity.Rendering
     [UpdateInGroup(typeof(PresentationSystemGroup)), UpdateAfter(typeof(RegisterMaterialsAndMeshesSystem)), UpdateBefore(typeof(EntitiesGraphicsSystem))]
     public sealed partial class DeformationsInPresentation : ComponentSystemGroup
     {
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is created.
+        /// </summary>
         protected override void OnCreate()
         {
             if (UnityEngine.SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)

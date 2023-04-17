@@ -1,4 +1,4 @@
-﻿#if ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER)
+#if ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER)
 // This class contains the debug settings exposed to the rendering debugger window
 using System;
 using System.Collections.Generic;
@@ -58,11 +58,19 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
 
         public void Register()
         {
+#if PLATFORM_ANDROID
+            // FK: No support for this feature on ARM platform with 32Bit since Neon Intrinsics aren't supported
+            // Yury: Android is the only 32-bit Arm platform we support
+            bool is32Bit = System.IntPtr.Size == 4;
+            if (is32Bit)
+            {
+                return;
+            }
+#endif
             var widgetList = new List<DebugUI.Widget>();
             widgetList.Add(new DebugUI.Container
             {
                 displayName = "Occlusion Culling",
-                flags = DebugUI.Flags.EditorOnly,
                 children =
                 {
                     new DebugUI.BoolField

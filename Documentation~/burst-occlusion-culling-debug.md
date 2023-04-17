@@ -1,6 +1,6 @@
 # Rendering Debugger Culling tab reference
 
-The **Culling** tab in the [Rendering debugger](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@latest?subfolder=/manual/Render-Pipeline-Debug-Window.html) includes debugging options and visualizations to help you investigate Burst occlusion culling issues.
+The **Culling** tab in the [Rendering debugger](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@latest?subfolder=/manual/Render-Pipeline-Debug-Window.html) includes debugging options and visualizations to help you investigate Burst Occlusion Culling issues.
 
 <table>
   <thead>

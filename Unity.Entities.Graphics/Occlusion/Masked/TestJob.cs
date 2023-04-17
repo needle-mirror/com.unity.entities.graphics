@@ -1,5 +1,6 @@
 #if ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER)
 
+using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
@@ -28,9 +29,7 @@ namespace Unity.Rendering.Occlusion.Masked
         [ReadOnly] public BatchCullingViewType ViewType;
         [ReadOnly] public int SplitIndex;
         [ReadOnly, NativeDisableUnsafePtrRestriction] public Tile* Tiles;
-#if UNITY_EDITOR
         [ReadOnly] public bool DisplayOnlyOccluded;
-#endif
 
         public void Execute(int index)
         {
@@ -76,7 +75,6 @@ namespace Unity.Rendering.Occlusion.Masked
             );
 
             bool chunkVisible = (chunkCullingResult == CullingResult.VISIBLE);
-#if UNITY_EDITOR
             /* If we want to invert occlusion for debug purposes, we want to draw _only_ occluded entities. For this, we
                want to run occlusion on every chunk, regardless of that chunk's test. A clearer but branch-ey way to
                write this is:
@@ -85,7 +83,6 @@ namespace Unity.Rendering.Occlusion.Masked
                    chunkVisible = true;
                } */
             chunkVisible |= DisplayOnlyOccluded;
-#endif
             if (!chunkVisible)
             {
                 /* The chunk's bounding box fails the visibility test, which means that it's either frustum culled or
@@ -136,7 +133,7 @@ namespace Unity.Rendering.Occlusion.Masked
                        occlusion cull. */
                     bool entityAlreadyFrustumCulled =
                         ViewType == BatchCullingViewType.Light &&
-                        ((chunkVisibility->SplitMasks[entityIndex] & (1 <<SplitIndex)) == 0);
+                        ((chunkVisibility->SplitMasks[entityIndex] & (1 << SplitIndex)) == 0);
 
                     bool entityVisible = false;
                     if (!entityAlreadyFrustumCulled)
@@ -156,7 +153,6 @@ namespace Unity.Rendering.Occlusion.Masked
                         entityVisible = (result == CullingResult.VISIBLE);
                     }
 
-#if UNITY_EDITOR
                     /* This effectively XORs the two booleans, and only flips visible when the inversion boolean is true. A
                        clearer but branch-ey way to write this is:
 
@@ -164,7 +160,6 @@ namespace Unity.Rendering.Occlusion.Masked
                            entityVisible = !entityVisible;
                        } */
                     entityVisible = (entityVisible != DisplayOnlyOccluded);
-#endif
                     /* Set the index we just processed to zero, indicating that it's not pending any more */
                     pendingBitfield ^= 1ul << tzIndex;
                     /* Set entity's visibility according to our occlusion test */
@@ -191,7 +186,8 @@ namespace Unity.Rendering.Occlusion.Masked
             }
         }
 
-        public static CullingResult TestRect(
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static CullingResult TestRectSSE(
             float2 min,
             float2 max,
             float wmin,
@@ -203,11 +199,6 @@ namespace Unity.Rendering.Occlusion.Masked
             v128 PixelCenter
         )
         {
-            if (min.x > 1.0f || min.y > 1.0f || max.x < -1.0f || max.y < -1.0f)
-            {
-                return CullingResult.VIEW_CULLED;
-            }
-
             if (X86.Sse4_1.IsSse41Supported)
             {
                 // Compute screen space bounding box and guard for out of bounds
@@ -216,7 +207,7 @@ namespace Unity.Rendering.Occlusion.Masked
                 pixelBBoxi = X86.Sse4_1.max_epi32(X86.Sse2.setzero_si128(), X86.Sse4_1.min_epi32(ScreenSize, pixelBBoxi));
 
                 // Pad bounding box to (32xN) tiles. Tile BB is used for looping / traversal
-                v128 SimdTilePad = X86.Sse2.setr_epi32(0, BufferGroup.TileWidth, 0,  BufferGroup.TileHeight);
+                v128 SimdTilePad = X86.Sse2.setr_epi32(0, BufferGroup.TileWidth, 0, BufferGroup.TileHeight);
                 v128 SimdTilePadMask = X86.Sse2.setr_epi32(
                     ~(BufferGroup.TileWidth - 1),
                     ~(BufferGroup.TileWidth - 1),
@@ -269,11 +260,11 @@ namespace Unity.Rendering.Occlusion.Masked
                     zMax = X86.Sse.div_ps(X86.Sse.set1_ps(1f), X86.Sse.set1_ps(wmin));
                 }
 
-                for (; ; )
+                for (; tileRowIdx < tileRowIdxEnd; tileRowIdx += NumTilesX)
                 {
                     v128 pixelX = startPixelX;
 
-                    for (int tx = txMin; ;)
+                    for (int tx = txMin; tx < txMax; tx++)
                     {
                         int tileIdx = tileRowIdx + tx;
 
@@ -298,19 +289,7 @@ namespace Unity.Rendering.Occlusion.Masked
                             return CullingResult.VISIBLE;
                         }
 
-                        if (++tx >= txMax)
-                        {
-                            break;
-                        }
-
                         pixelX = X86.Sse2.add_epi32(pixelX, X86.Sse2.set1_epi32(BufferGroup.TileWidth));
-                    }
-
-                    tileRowIdx += NumTilesX;
-
-                    if (tileRowIdx >= tileRowIdxEnd)
-                    {
-                        break;
                     }
 
                     pixelY = X86.Sse2.add_epi32(pixelY, X86.Sse2.set1_epi32(BufferGroup.TileHeight));
@@ -319,7 +298,164 @@ namespace Unity.Rendering.Occlusion.Masked
                 return CullingResult.OCCLUDED;
             }
             else
-                throw new System.NotImplementedException();
+            {
+                return CullingResult.VISIBLE;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static CullingResult TestRectNEON(
+            float2 min,
+            float2 max,
+            float wmin,
+            Tile* tiles,
+            BatchCullingProjectionType projectionType,
+            int NumTilesX,
+            v128 ScreenSize,
+            v128 HalfSize,
+            v128 PixelCenter
+        )
+        {
+            if (Arm.Neon.IsNeonSupported)
+            {
+                v128 zero = new v128(0);
+                v128 oneF = new v128(1.0f);
+                v128 negOneF = new v128(-1.0f);
+                v128 fullMask = new v128(~0);
+                v128 wideTileWidth = new v128(BufferGroup.TileWidth);
+                v128 wideTileHeight = new v128(BufferGroup.TileHeight);
+
+                // Compute screen space bounding box and guard for out of bounds
+                v128 pixelBBox = Arm.Neon.vmlaq_f32(PixelCenter, new v128(min.x, max.x, max.y, min.y), HalfSize);
+                v128 pixelBBoxi = Arm.Neon.vcvtnq_s32_f32(pixelBBox);
+                pixelBBoxi = Arm.Neon.vmaxq_s32(zero, Arm.Neon.vminq_s32(ScreenSize, pixelBBoxi));
+
+                // Pad bounding box to (32xN) tiles. Tile BB is used for looping / traversal
+                v128 SimdTilePad = new v128(0, BufferGroup.TileWidth, 0, BufferGroup.TileHeight);
+                v128 SimdTilePadMask = new v128(
+                    ~(BufferGroup.TileWidth - 1),
+                    ~(BufferGroup.TileWidth - 1),
+                    ~(BufferGroup.TileHeight - 1),
+                    ~(BufferGroup.TileHeight - 1)
+                );
+                v128 tileBBoxi = Arm.Neon.vandq_s8(Arm.Neon.vaddq_s32(pixelBBoxi, SimdTilePad), SimdTilePadMask);
+
+                int txMin = tileBBoxi.SInt0 >> BufferGroup.TileWidthShift;
+                int txMax = tileBBoxi.SInt1 >> BufferGroup.TileWidthShift;
+                int tileRowIdx = (tileBBoxi.SInt2 >> BufferGroup.TileHeightShift) * NumTilesX;
+                int tileRowIdxEnd = (tileBBoxi.SInt3 >> BufferGroup.TileHeightShift) * NumTilesX;
+
+                // Pad bounding box to (8x4) subtiles. Skip SIMD lanes outside the subtile BB
+                v128 SimdSubTilePad = new v128(0, BufferGroup.SubTileWidth, 0, BufferGroup.SubTileHeight);
+                v128 SimdSubTilePadMask = new v128(
+                    ~(BufferGroup.SubTileWidth - 1),
+                    ~(BufferGroup.SubTileWidth - 1),
+                    ~(BufferGroup.SubTileHeight - 1),
+                    ~(BufferGroup.SubTileHeight - 1)
+                );
+                v128 subTileBBoxi = Arm.Neon.vandq_s8(Arm.Neon.vaddq_s32(pixelBBoxi, SimdSubTilePad), SimdSubTilePadMask);
+
+                v128 stxmin = new v128(subTileBBoxi.SInt0 - 1); // - 1 to be able to use GT test
+                v128 stymin = new v128(subTileBBoxi.SInt2 - 1); // - 1 to be able to use GT test
+                v128 stxmax = new v128(subTileBBoxi.SInt1);
+                v128 stymax = new v128(subTileBBoxi.SInt3);
+
+                // Setup pixel coordinates used to discard lanes outside subtile BB
+                v128 SimdSubTileColOffset = new v128(
+                    0,
+                    BufferGroup.SubTileWidth,
+                    BufferGroup.SubTileWidth * 2,
+                    BufferGroup.SubTileWidth * 3
+                );
+                v128 startPixelX = Arm.Neon.vaddq_s32(SimdSubTileColOffset, new v128(tileBBoxi.SInt0));
+                // TODO: (Apoorva) LHS is zero. We can just use the RHS directly.
+                v128 pixelY = Arm.Neon.vaddq_s32(zero, new v128(tileBBoxi.SInt2));
+
+                // Compute z from w. Note that z is reversed order, 0 = far, 1/near = near, which
+                // means we use a greater than test, so zMax is used to test for visibility. (z goes from 0 = far to 2 = near for ortho)
+
+                v128 zMax;
+                v128 wMin = new v128(wmin);
+                if (projectionType == BatchCullingProjectionType.Orthographic)
+                {
+                    zMax = Arm.Neon.vmlaq_f32(oneF, negOneF, wMin);
+                }
+                else
+                {
+                    zMax = Arm.Neon.vdivq_f32(oneF, wMin);
+                }
+
+                for (; tileRowIdx < tileRowIdxEnd; tileRowIdx += NumTilesX)
+                {
+                    v128 pixelX = startPixelX;
+
+                    for (int tx = txMin; tx < txMax; tx++)
+                    {
+                        int tileIdx = tileRowIdx + tx;
+
+                        // Fetch zMin from masked hierarchical Z buffer
+                        v128 mask = tiles[tileIdx].mask;
+                        v128 zMin0 = IntrinsicUtils._vblendq_f32(Arm.Neon.vceqq_s32(mask, fullMask), tiles[tileIdx].zMin0, tiles[tileIdx].zMin1);
+                        v128 zMin1 = IntrinsicUtils._vblendq_f32(Arm.Neon.vceqq_s32(mask, zero), tiles[tileIdx].zMin1, tiles[tileIdx].zMin0);
+                        v128 zBuf = Arm.Neon.vminq_f32(zMin0, zMin1);
+
+                        // Perform conservative greater than test against hierarchical Z buffer (zMax >= zBuf means the subtile is visible)
+                        v128 zPass = Arm.Neon.vcgeq_f32(zMax, zBuf);  //zPass = zMax >= zBuf ? ~0 : 0
+
+                        // Mask out lanes corresponding to subtiles outside the bounding box
+                        v128 bboxTestMin = Arm.Neon.vandq_s8(Arm.Neon.vcgtq_s32(pixelX, stxmin), Arm.Neon.vcgtq_s32(pixelY, stymin));
+                        v128 bboxTestMax = Arm.Neon.vandq_s8(Arm.Neon.vcgtq_s32(stxmax, pixelX), Arm.Neon.vcgtq_s32(stymax, pixelY));
+                        v128 boxMask = Arm.Neon.vandq_s8(bboxTestMin, bboxTestMax);
+                        zPass = Arm.Neon.vandq_s8(zPass, boxMask);
+
+                        // If not all tiles failed the conservative z test we can immediately terminate the test
+                        v64 zTestResult = Arm.Neon.vqmovn_u64(zPass);
+                        if (zTestResult.ULong0 != 0ul)
+                        {
+                            return CullingResult.VISIBLE;
+                        }
+
+                        pixelX = Arm.Neon.vaddq_s32(pixelX, wideTileWidth);
+                    }
+
+                    pixelY = Arm.Neon.vaddq_s32(pixelY, wideTileHeight);
+                }
+
+                return CullingResult.OCCLUDED;
+            }
+            else
+            {
+                return CullingResult.VISIBLE;
+            }
+        }
+
+        public static CullingResult TestRect(
+            float2 min,
+            float2 max,
+            float wmin,
+            Tile* tiles,
+            BatchCullingProjectionType projectionType,
+            int NumTilesX,
+            v128 ScreenSize,
+            v128 HalfSize,
+            v128 PixelCenter
+        )
+        {
+            if (min.x > 1.0f || min.y > 1.0f || max.x < -1.0f || max.y < -1.0f)
+            {
+                return CullingResult.VIEW_CULLED;
+            }
+
+            if (X86.Sse4_1.IsSse41Supported)
+            {
+                return TestRectSSE( min, max, wmin, tiles, projectionType, NumTilesX, ScreenSize, HalfSize, PixelCenter );
+            }
+            else if (Arm.Neon.IsNeonSupported)
+            {
+                return TestRectNEON( min, max, wmin, tiles, projectionType, NumTilesX, ScreenSize, HalfSize, PixelCenter );
+            }
+
+            return CullingResult.VISIBLE;
         }
     }
 }

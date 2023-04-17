@@ -51,7 +51,10 @@ namespace Unity.Rendering
                 shadowMasks == other.shadowMasks;
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Calculates the hash code for this object.
+        /// </summary>
+        /// <returns>The hash code.</returns>
         public override int GetHashCode()
         {
             int hash = 0;

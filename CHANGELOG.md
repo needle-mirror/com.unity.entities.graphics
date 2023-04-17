@@ -1,4 +1,25 @@
+
 # Changelog
+
+## [1.0.8] - 2023-04-17
+
+### Added
+
+* Support for CPU-based (Burst) masked occlusion culling on Neon processors.
+* Explicit usage of Burst's FMA optimization, parallel sort, and missing changes from previous review feedback of boc-neon branch
+
+### Changed
+
+* Greatly improved performance of CPU-based (Burst) masked occlusion culling.
+* Greatly improved performance of Depth and Test debug views used with CPU-based (Burst) masked occlusion culling.
+* Reduced the amount of memory allocated by allocating based on the maximum number of worker threads the running platform requires rather than defaulting to using a theoretical upper-bound of 128 worker threads.
+
+### Fixed
+
+* Entities Graphics Occlusion shader throws errors when building the project
+* Fixed a GraphicsBuffer leak that could occur in cases where Entities Graphics is running without any entities to render.
+* enabling/disabling per-view occlusion
+
 
 ## [1.0.0-pre.65] - 2023-03-21
 

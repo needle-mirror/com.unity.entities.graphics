@@ -132,24 +132,30 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
             EntityQuery testQuery,
             EntityQuery meshQuery,
             BufferGroup bufferGroup,
-            DebugRenderMode mode,
-            bool isOcclusionBrowseWindowVisible
+            DebugRenderMode mode
+#if UNITY_EDITOR
+            , bool isOcclusionBrowseWindowVisible
+#endif
         )
         {
-            if(AnyMeshOrMaterialNull())
+            if (AnyMeshOrMaterialNull())
             {
                 CreateMeshAndMaterials();
             }
             s_CmdLayers.Clear();
             // Write the CPU-rasterized depth buffer to a GPU texture, and then blit it to the overlay
             if (mode == DebugRenderMode.Depth ||
-                mode == DebugRenderMode.Test ||
-                isOcclusionBrowseWindowVisible)
+                mode == DebugRenderMode.Test
+#if UNITY_EDITOR
+                || isOcclusionBrowseWindowVisible
+#endif
+                )
             {
                 s_MaskedDepthToPixelDepth.Begin();
                 int width = bufferGroup.NumPixelsX;
                 int height = bufferGroup.NumPixelsY;
                 int numTilesX = bufferGroup.NumTilesX;
+                int numTilesY = bufferGroup.NumTilesY;
                 var job = new DecodeMaskedDepthJob()
                 {
                     // In
@@ -160,7 +166,7 @@ namespace Unity.Rendering.Occlusion.Masked.Visualization
                     // Out
                     DecodedZBuffer = m_CPUDepth,
                 };
-                job.Schedule((width * height), 64).Complete();
+                job.Schedule((numTilesX * numTilesY), 64).Complete();
 
                 gpuDepth.SetPixelData(m_CPUDepth, 0);
                 gpuDepth.Apply();

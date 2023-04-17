@@ -59,7 +59,6 @@ Shader "Hidden/OcclusionDebugOccluders"
 
             FrameOut frag(v2f i)
             {
-                UNITY_SETUP_INSTANCE_ID(i);
                 fixed4 col = i.color;
 
                 float2 dp = normalize(float2(ddx(i.vertex.z), ddy(i.vertex.z)));

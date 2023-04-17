@@ -1,5 +1,5 @@
 #if ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER)
-// #define WAIT_FOR_EACH_JOB // This is useful for profiling individual jobs, but should be commented out for performance
+//#define WAIT_FOR_EACH_JOB // This is useful for profiling individual jobs, but should be commented out for performance
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -26,6 +26,11 @@ namespace Unity.Rendering.Occlusion
         EntityQuery m_OcclusionMeshQuery;
         EntityQuery m_ReadonlyTestQuery;
         EntityQuery m_ReadonlyMeshQuery;
+
+        const int m_binSize  = 3 * 1024;
+        NativeArray<float> m_binTriangleX;
+        NativeArray<float> m_binTriangleY;
+        NativeArray<float> m_binTriangleW;
 
         static readonly ProfilerMarker s_Cull = new ProfilerMarker("Occlusion.Cull");
         static readonly ProfilerMarker s_SetResolution = new ProfilerMarker("Occlusion.Cull.SetResolution");
@@ -72,6 +77,12 @@ namespace Unity.Rendering.Occlusion
                     ComponentType.ReadOnly<EntitiesGraphicsChunkInfo>()
                 },
             });
+
+            // +1 because of main thread helping out...
+            int workerCount = JobsUtility.JobWorkerCount + 1;
+            m_binTriangleX = new NativeArray<float>( workerCount * m_binSize, Allocator.Persistent );
+            m_binTriangleY = new NativeArray<float>( workerCount * m_binSize, Allocator.Persistent );
+            m_binTriangleW = new NativeArray<float>( workerCount * m_binSize, Allocator.Persistent );
         }
 
         public void Dispose()
@@ -81,6 +92,10 @@ namespace Unity.Rendering.Occlusion
             {
                 bufferGroup.Dispose();
             }
+
+            m_binTriangleX.Dispose();
+            m_binTriangleY.Dispose();
+            m_binTriangleW.Dispose();
         }
 
         JobHandle CullView(
@@ -129,7 +144,12 @@ namespace Unity.Rendering.Occlusion
                 numTotalIndices += meshes[i].indexCount;
             }
 
-            var transformedVerts = new NativeArray<float4>(maxVertsInMesh * JobsUtility.MaxJobThreadCount, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+#if UNITY_2022_2_14F1_OR_NEWER
+            int maxThreadCount = JobsUtility.ThreadIndexCount;
+#else
+            int maxThreadCount = JobsUtility.MaxJobThreadCount;
+#endif
+            var transformedVerts = new NativeArray<float4>(maxVertsInMesh * maxThreadCount, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             // Multiply index count by 6 because that's the most amount of points that can be generated during clipping
             var clippedVerts = new NativeArray<float3>(6 * numTotalIndices, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             // Triangle min max contains the screen space aabb of the triangles to not recompute it for each bin in the
@@ -170,10 +190,9 @@ namespace Unity.Rendering.Occlusion
             // TODO: Look at perf. Evaluate whether running this job is even worth it. It only takes 0.02ms in Viking Village,
             // which is why I haven't looked at it yet.
             s_SortMeshes.Begin();
-            var sortJob = new OcclusionSortMeshesJob
-            {
-                ClippedOccluders = clippedOccluders,
-            }.Schedule(transformJob);
+
+            var sortJob = clippedOccluders.SortJob(new Compare()).Schedule(transformJob);
+
 #if WAIT_FOR_EACH_JOB
             sortJob.Complete();
 #endif // WAIT_FOR_EACH_JOB
@@ -207,6 +226,7 @@ namespace Unity.Rendering.Occlusion
                 const int TilesPerBinY = 4;//128 tiles per X axis, values can be 1 2 4 8 16 32 64 128
                 const int TilesPerBin = TilesPerBinX * TilesPerBinY;
                 int numBins = bufferGroup.NumTilesX * bufferGroup.NumTilesY / TilesPerBin;
+
                 rasterizeJob = new RasterizeJob
                 {
                     ClippedOccluders = clippedOccluders,
@@ -231,10 +251,15 @@ namespace Unity.Rendering.Occlusion
                     TilesBasePtr = (Tile*) bufferGroup.Tiles.GetUnsafePtr(),
                     TilesPerBinX = TilesPerBinX,
                     TilesPerBinY = TilesPerBinY,
+                    BinTriangleXBasePtr = (float*)m_binTriangleX.GetUnsafePtr(),
+                    BinTriangleYBasePtr = (float*)m_binTriangleY.GetUnsafePtr(),
+                    BinTriangleWBasePtr = (float*)m_binTriangleW.GetUnsafePtr(),
+                    BinSize = m_binSize,
                 }.ScheduleParallel(numBins, 1, JobHandle.CombineDependencies(clearJob, sortJob));
     #if WAIT_FOR_EACH_JOB
                 rasterizeJob.Complete();
     #endif // WAIT_FOR_EACH_JOB
+
                 s_Rasterize.End();
             }else
             {
@@ -260,9 +285,7 @@ namespace Unity.Rendering.Occlusion
                 ViewType = viewType,
                 SplitIndex = splitIndex,
                 Tiles = (Tile*)bufferGroup.Tiles.GetUnsafePtr(),
-#if UNITY_EDITOR
                 DisplayOnlyOccluded = InvertOcclusion,
-#endif
             }.ScheduleWithIndirectList(visibilityItems, 1, JobHandle.CombineDependencies(rasterizeJob, computeBoundsJob));
 #if WAIT_FOR_EACH_JOB
             testJob.Complete();
@@ -296,6 +319,15 @@ namespace Unity.Rendering.Occlusion
 #endif
         )
         {
+#if PLATFORM_ANDROID
+            // FK: No support for this feature on ARM platform with 32Bit since Neon Intrinsics aren't supported
+            // Yury: Android is the only 32-bit Arm platform we support
+            bool is32Bit = System.IntPtr.Size == 4;
+            if (is32Bit)
+            {
+                return new JobHandle();
+            }
+#endif
             if (World.DefaultGameObjectInjectionWorld == null)
             {
                 return new JobHandle();
@@ -356,6 +388,9 @@ namespace Unity.Rendering.Occlusion
                     s_SetResolution.End();
                 }
 
+                if (!bufferGroup.Enabled)
+                    continue;
+
                 bool invertOcclusion = debugSettings.debugRenderMode == DebugRenderMode.Inverted;
 
                 JobHandle viewJob = CullView(
@@ -410,24 +445,28 @@ namespace Unity.Rendering.Occlusion
 
                 if (!occlusionView.OcclusionEnabled)
                 {
-                    BufferGroups.Remove(viewID);
+                    bufferGroup.Enabled = false;
                 }
                 else
                 {
 #if UNITY_EDITOR
                     if (bufferGroup.NumPixelsX != occlusionView.OcclusionBufferWidth ||
-                        bufferGroup.NumPixelsY != occlusionView.OcclusionBufferHeight)
+                        bufferGroup.NumPixelsY != occlusionView.OcclusionBufferHeight ||
+                        bufferGroup.Enabled != occlusionView.OcclusionEnabled)
                     {
                         OcclusionBrowseWindow.Refresh();
                     }
 #endif
 
+                    bufferGroup.Enabled = true;
                     bufferGroup.SetResolutionAndClip(
                         (int)occlusionView.OcclusionBufferWidth,
                         (int)occlusionView.OcclusionBufferHeight,
                         bufferGroup.ProjectionType,
                         bufferGroup.NearClip);
                 }
+
+                BufferGroups[viewID] = bufferGroup;
             }
         }
 

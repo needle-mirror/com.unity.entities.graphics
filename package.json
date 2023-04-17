@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.0.0-pre.65",
+  "version": "1.0.8",
   "unity": "2022.2",
-  "unityRelease": "2f1",
+  "unityRelease": "15f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.0.0-pre.65",
+    "com.unity.entities": "1.0.8",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.6"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Added\n\n* Burst Occlusion Culling occlusion browser tool\n\n### Changed\n\n* Disable Entities Graphics error message if there is no active SRP."
+    "changelog": "### Added\n\n* Support for CPU-based (Burst) masked occlusion culling on Neon processors.\n* Explicit usage of Burst's FMA optimization, parallel sort, and missing changes from previous review feedback of boc-neon branch\n\n### Changed\n\n* Greatly improved performance of CPU-based (Burst) masked occlusion culling.\n* Greatly improved performance of Depth and Test debug views used with CPU-based (Burst) masked occlusion culling.\n* Reduced the amount of memory allocated by allocating based on the maximum number of worker threads the running platform requires rather than defaulting to using a theoretical upper-bound of 128 worker threads.\n\n### Fixed\n\n* Entities Graphics Occlusion shader throws errors when building the project\n* Fixed a GraphicsBuffer leak that could occur in cases where Entities Graphics is running without any entities to render.\n* enabling/disabling per-view occlusion"
   },
   "upmCi": {
-    "footprint": "ccf6c26f75c90aeefbd73f32ae087fa743a9640a"
+    "footprint": "dd45e7aa3a48f1e92bc2e58d8028c2c946fbbd72"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "85530c484ef7afedc5b128081152ec5e1f6f30e2"
+    "revision": "25dfb648cd0fabcf13fed46219e5fbe0fdabe4ac"
   }
 }

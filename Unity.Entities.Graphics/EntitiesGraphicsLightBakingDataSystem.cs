@@ -28,6 +28,9 @@ namespace Unity.Rendering
     {
         private EntityQuery m_LightBakingQuery;
 
+        /// <summary>
+        /// Called when this system is created.
+        /// </summary>
         protected override void OnCreate()
         {
             m_LightBakingQuery = SystemAPI.QueryBuilder()
@@ -36,7 +39,9 @@ namespace Unity.Rendering
             m_LightBakingQuery.SetChangedVersionFilter(ComponentType.ReadOnly<Light>());
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is updated.
+        /// </summary>
         protected override void OnUpdate()
         {
             var entities = m_LightBakingQuery.ToEntityArray(Allocator.Temp);

@@ -64,7 +64,7 @@ namespace Unity.Rendering
         /// <param name="materialIndexInRenderMeshArray">The material index in <see cref="RenderMeshArray.Materials"/>.</param>
         /// <param name="meshIndexInRenderMeshArray">The mesh index in <see cref="RenderMeshArray.Meshes"/>.</param>
         /// <param name="submeshIndex">An optional submesh ID.</param>
-        /// <returns></returns>
+        /// <returns>Returns the MaterialMeshInfo instance that contains the material and mesh indices.</returns>
         public static MaterialMeshInfo FromRenderMeshArrayIndices(
             int materialIndexInRenderMeshArray,
             int meshIndexInRenderMeshArray,
@@ -89,7 +89,6 @@ namespace Unity.Rendering
         /// <param name="materialID">The material ID from <see cref="EntitiesGraphicsSystem.RegisterMaterial"/>.</param>
         /// <param name="meshID">The mesh ID from <see cref="EntitiesGraphicsSystem.RegisterMesh"/>.</param>
         /// <param name="submeshIndex">An optional submesh ID.</param>
-        /// <returns></returns>
         public MaterialMeshInfo(BatchMaterialID materialID, BatchMeshID meshID, sbyte submeshIndex = 0)
             : this((int)materialID.value, (int)meshID.value, submeshIndex)
         {}
@@ -422,13 +421,20 @@ namespace Unity.Rendering
             return math.all(GetHash128() == other.GetHash128());
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Determines whether two object instances are equal based on their hashes.
+        /// </summary>
+        /// <param name="obj">The object to compare with the current object.</param>
+        /// <returns>Returns true if the specified object is equal to the current object. Otherwise, returns false.</returns>
         public override bool Equals(object obj)
         {
             return obj is RenderMeshArray other && Equals(other);
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Calculates the hash code for this object.
+        /// </summary>
+        /// <returns>The hash code.</returns>
         public override int GetHashCode()
         {
             return (int) GetHash128().x;

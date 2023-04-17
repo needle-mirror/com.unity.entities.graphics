@@ -291,7 +291,9 @@ namespace Unity.Rendering
         private JobHandle m_BoundsCheckHandle = default;
 #endif
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is created.
+        /// </summary>
         protected override void OnCreate()
         {
             if (!EntitiesGraphicsSystem.EntitiesGraphicsEnabled)
@@ -317,7 +319,9 @@ namespace Unity.Rendering
 #endif
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is updated.
+        /// </summary>
         protected override void OnUpdate()
         {
             Profiler.BeginSample("RegisterMaterialsAndMeshes");
@@ -325,7 +329,9 @@ namespace Unity.Rendering
             Profiler.EndSample();
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is destroyed.
+        /// </summary>
         protected override void OnDestroy()
         {
             if (!EntitiesGraphicsSystem.EntitiesGraphicsEnabled) return;
@@ -697,8 +703,14 @@ namespace Unity.Rendering
         {
             Profiler.BeginSample("ComputeStats");
 
+#if UNITY_2022_2_14F1_OR_NEWER
+            int maxThreadCount = JobsUtility.ThreadIndexCount;
+#else
+            int maxThreadCount = JobsUtility.MaxJobThreadCount;
+#endif
+
             var result = default(EntitiesGraphicsStats);
-            for (int i = 0; i < JobsUtility.MaxJobThreadCount; ++i)
+            for (int i = 0; i < maxThreadCount; ++i)
             {
                 ref var s = ref m_PerThreadStats[i];
 
@@ -801,7 +813,9 @@ namespace Unity.Rendering
 
         private ThreadLocalAllocator m_ThreadLocalAllocators;
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is created.
+        /// </summary>
         protected override void OnCreate()
         {
             // If -nographics is enabled, or if there is no compute shader support, disable HR.
@@ -907,7 +921,13 @@ namespace Unity.Rendering
                 });
 
 #if UNITY_EDITOR
-            m_PerThreadStats = (EntitiesGraphicsPerThreadStats*)Memory.Unmanaged.Allocate(JobsUtility.MaxJobThreadCount * sizeof(EntitiesGraphicsPerThreadStats),
+#if UNITY_2022_2_14F1_OR_NEWER
+            int maxThreadCount = JobsUtility.ThreadIndexCount;
+#else
+            int maxThreadCount = JobsUtility.MaxJobThreadCount;
+#endif
+
+            m_PerThreadStats = (EntitiesGraphicsPerThreadStats*)Memory.Unmanaged.Allocate(maxThreadCount * sizeof(EntitiesGraphicsPerThreadStats),
                 64, Allocator.Persistent);
 #endif
 
@@ -1092,7 +1112,9 @@ namespace Unity.Rendering
             }
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is destroyed.
+        /// </summary>
         protected override void OnDestroy()
         {
             if (!EntitiesGraphicsEnabled) return;
@@ -1163,7 +1185,9 @@ namespace Unity.Rendering
             };
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is updated.
+        /// </summary>
         protected override void OnUpdate()
         {
             JobHandle inputDeps = Dependency;
@@ -1424,7 +1448,12 @@ namespace Unity.Rendering
                 m_PrevCameraPos = lodParams.cameraPos;
                 m_ResetLod = false;
 #if UNITY_EDITOR
-                UnsafeUtility.MemClear(m_PerThreadStats, sizeof(EntitiesGraphicsPerThreadStats) * JobsUtility.MaxJobThreadCount);
+#if UNITY_2022_2_14F1_OR_NEWER
+                int maxThreadCount = JobsUtility.ThreadIndexCount;
+#else
+                int maxThreadCount = JobsUtility.MaxJobThreadCount;
+#endif
+                UnsafeUtility.MemClear(m_PerThreadStats, sizeof(EntitiesGraphicsPerThreadStats) * maxThreadCount);
 #endif
             }
             else
@@ -1666,9 +1695,15 @@ namespace Unity.Rendering
         private JobHandle UpdateAllBatches(JobHandle inputDependencies)
         {
             Profiler.BeginSample("GetComponentTypes");
+#if UNITY_2022_2_14F1_OR_NEWER
+            int maxThreadCount = JobsUtility.ThreadIndexCount;
+#else
+            int maxThreadCount = JobsUtility.MaxJobThreadCount;
+#endif
+
 
             var threadLocalAABBs = new NativeArray<ThreadLocalAABB>(
-                JobsUtility.MaxJobThreadCount,
+                maxThreadCount,
                 Allocator.TempJob,
                 NativeArrayOptions.UninitializedMemory);
             var zeroAABBJob = new ZeroThreadLocalAABBJob
@@ -2388,7 +2423,14 @@ namespace Unity.Rendering
 
         private void EndUpdate()
         {
-            m_GPUUploader.EndAndCommit(m_ThreadedGPUUploader);
+            if (m_ThreadedGPUUploader.IsValid)
+                m_GPUUploader.EndAndCommit(m_ThreadedGPUUploader);
+
+            // Set the uploader struct to null to ensure that any calls
+            // to EndAndCommit are made with a struct returned from Begin()
+            // on the same frame. This is important in case Begin() is skipped
+            // on a frame.
+            m_ThreadedGPUUploader = default;
 
 #if DEBUG_LOG_MEMORY_USAGE
             if (m_GPUPersistentAllocator.UsedSpace != PrevUsedSpace)

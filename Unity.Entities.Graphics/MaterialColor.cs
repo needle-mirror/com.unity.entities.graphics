@@ -40,7 +40,10 @@ namespace Unity.Rendering
         /// </summary>
         public class MaterialColorBaker : Baker<MaterialColor>
         {
-            /// <inheritdoc/>
+            /// <summary>
+            /// Called during the baking process to bake the authoring component.
+            /// </summary>
+            /// <param name="authoring">The authoring component to bake.</param>
             public override void Bake(MaterialColor authoring)
             {
                 Color linearCol = authoring.color.linear;

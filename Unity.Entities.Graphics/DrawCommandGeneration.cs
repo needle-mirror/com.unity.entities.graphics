@@ -120,7 +120,7 @@ namespace Unity.Rendering
     {
         public const int kInitialSize = 1024 * 1024;
         public const Allocator kAllocator = Allocator.Persistent;
-        public const int NumThreads = ChunkDrawCommandOutput.NumThreads;
+        public static readonly int NumThreads = ChunkDrawCommandOutput.NumThreads;
 
         [StructLayout(LayoutKind.Explicit, Size = JobsUtility.CacheLineSize)]
         public unsafe struct PaddedAllocator
@@ -568,7 +568,7 @@ namespace Unity.Rendering
     internal unsafe struct ThreadLocalCollectBuffer
     {
         public const Allocator kAllocator = Allocator.TempJob;
-        public const int kCollectBufferSize = ChunkDrawCommandOutput.NumThreads;
+        public static readonly int kCollectBufferSize = ChunkDrawCommandOutput.NumThreads;
 
         public UnsafeList<DrawCommandWorkItem> WorkItems;
         private fixed int m_CacheLinePadding[12]; // The padding here assumes some internal sizes
@@ -607,7 +607,7 @@ namespace Unity.Rendering
     internal unsafe struct DrawBinCollector
     {
         public const Allocator kAllocator = Allocator.TempJob;
-        public const int NumThreads = ChunkDrawCommandOutput.NumThreads;
+        public static readonly int NumThreads = ChunkDrawCommandOutput.NumThreads;
 
         public IndirectList<DrawCommandSettings> Bins;
         private UnsafeParallelHashSet<DrawCommandSettings> m_BinSet;
@@ -795,10 +795,14 @@ namespace Unity.Rendering
     {
         public const Allocator kAllocator = Allocator.TempJob;
 
-        public const int NumThreads = JobsUtility.MaxJobThreadCount;
+#if UNITY_2022_2_14F1_OR_NEWER
+        public static readonly int NumThreads = JobsUtility.ThreadIndexCount;
+#else
+        public static readonly int NumThreads = JobsUtility.MaxJobThreadCount;
+#endif
 
+        public static readonly int kNumThreadsBitfieldLength = (NumThreads + 63) / 64;
         public const int kNumReleaseThreads = 4;
-        public const int kNumThreadsBitfieldLength = (NumThreads + 63) / 64;
         public const int kBinPresentFilterSize = 1 << 10;
 
         public UnsafeList<ThreadLocalDrawCommands> ThreadLocalDrawCommands;

@@ -112,6 +112,11 @@ namespace Unity.Rendering
         // TODO: safety handle?
         [NativeDisableUnsafePtrRestriction] internal ThreadedSparseUploaderData* m_Data;
 
+        /// <summary>
+        /// Indicates whether the SparseUploader is valid and can be used.
+        /// </summary>
+        public bool IsValid => m_Data != null;
+
         private bool TryAlloc(int operationSize, int dataSize, out byte* ptr, out int operationOffset, out int dataOffset)
         {
             // Fetch current buffer and ensure we are not already out of GPU buffers to allocate from;
@@ -609,15 +614,18 @@ namespace Unity.Rendering
 
         private void RecoverBuffers()
         {
-            var numFree = 0;
+            int numFree = 0;
 
             // Count frames instead of using async readback to determine completion, because
             // using async readback prevents Unity from letting the device idle, which is really
             // bad for power usage.
             // Add 1 to the device frame count to account for two frames overlapping on
             // CPU side before reaching the GPU.
-            if (m_FrameData.Count > (NumFramesInFlight + 1))
-                numFree = 1;
+            int maxBufferedFrames = NumFramesInFlight + 1;
+
+            // If we have more buffered frames than the maximum, free all the excess
+            if (m_FrameData.Count > maxBufferedFrames)
+                numFree = m_FrameData.Count - maxBufferedFrames;
 
             for (int i = 0; i < numFree; ++i)
             {
@@ -722,7 +730,19 @@ namespace Unity.Rendering
         /// <param name="tsu">The ThreadedSparseUploader to consume and process upload dispatches for. You must have created this with a call to SparseUploader.Begin.</param>
         public void EndAndCommit(ThreadedSparseUploader tsu)
         {
-            var numBuffers = m_ThreadData->m_NumBuffers;
+            // Enforce that EndAndCommit is only called with a valid ThreadedSparseUploader
+            if (!tsu.IsValid)
+            {
+                Debug.LogError("Invalid ThreadedSparseUploader passed to EndAndCommit");
+                return;
+            }
+
+            int numBuffers = m_ThreadData->m_NumBuffers;
+
+            // If there is no work for us to do, early out so we don't add empty entries into m_FrameData
+            if (numBuffers == 0 && !m_MappedBuffers.IsCreated)
+                return;
+
             var frameData = m_FreeFrameData.Count > 0 ? m_FreeFrameData.Pop() : new FrameData();
             for (int iBuf = 0; iBuf < numBuffers; ++iBuf)
             {
@@ -751,7 +771,6 @@ namespace Unity.Rendering
 
             if (m_MappedBuffers.IsCreated)
                 m_MappedBuffers.Dispose();
-
 
             StepFrame();
         }

@@ -240,6 +240,9 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
                     // triangle to be rendered as the base.If all of the 2D w coordinates
                     // are 1, the determinant is also exactly twice the signed screenspace aren of the triangle.
                     // If the determinant is zero, either the triangle is degenerate or the view is edge - on.
+                    // Furthermore, for vertices defined by the right-hand rule, the determinant is positive if the triangle
+                    // is front-facing and negative if the triangle is back-facing. 
+
                     float area = (homogeneousVertices.c1.x - homogeneousVertices.c2.x) * (homogeneousVertices.c0.y - homogeneousVertices.c2.y)
                                - (homogeneousVertices.c2.x - homogeneousVertices.c0.x) * (homogeneousVertices.c2.y - homogeneousVertices.c1.y);
 

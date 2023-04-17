@@ -95,7 +95,9 @@ namespace Unity.Rendering
         EntityQuery m_MissingLODWorldReferencePoint;
         EntityQuery m_MissingLODGroupWorldReferencePoint;
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is created.
+        /// </summary>
         protected override void OnCreate()
         {
             m_MissingRootLODRange = GetEntityQuery(new EntityQueryDesc
@@ -134,7 +136,9 @@ namespace Unity.Rendering
             });
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is updated.
+        /// </summary>
         protected override void  OnUpdate()
         {
             EntityManager.AddComponent(m_MissingRootLODRange, typeof(RootLODRange));

@@ -1,23 +1,23 @@
-# Set up Burst occlusion culling
+# Set up Burst Occlusion Culling
 
-To set up Burst occlusion culling in your Unity project:
+To set up Burst Occlusion Culling in your Unity project:
 
 1. Enable the feature.
-2. Enable and configure Burst occlusion culling for individual cameras, lights, and reflection probes.
+2. Enable and configure Burst Occlusion Culling for individual cameras, lights, and reflection probes.
 3. Configure some entities to be occluders.
 
-## Enable Burst occlusion culling
+## Enable Burst Occlusion Culling
 
-The first step to set up Burst occlusion culling is to enable the feature for your project. To do this:
+The first step to set up Burst Occlusion Culling is to enable the feature for your project. To do this:
 
 1. Set the `ENABLE_UNITY_OCCLUSION` custom scripting symbol. For information on how to do this, refer to [Custom scripting symbols](xref:CustomScriptingSymbols).
 2. Ensure that [Burst](https://docs.unity3d.com/Packages/com.unity.burst@latest/index.html) is enabled. To do this, select **Jobs** > **Burst** > **Enable Compilation**.
 3. Select **Occlusion** > **Enable**.
-4. Burst occlusion culling requires the target CPU to support SSE4 instructions. To be able to build a Unity Player, go to **Edit** > **Project Settings** > **Burst AOT Settings** and set **Target CPU architectures** to **SSE4**.
+4. Burst Occlusion Culling requires the target CPU to support SSE4 instructions. To be able to build a Unity Player, go to **Edit** > **Project Settings** > **Burst AOT Settings** and set **Target CPU architectures** to **SSE4**.
 
 ## Configure per-view occlusion culling
 
-You can enable and configure Burst occlusion culling on a per-camera, per-light, and per reflection probe basis. By default, only the [main camera](xref:UnityEngine.Camera.main) uses Burst occlusion culling. To enable Burst occlusion culling for a camera, light, and reflection probe, add the **Occlusion View** component and enable the **Occlusion Enable** property. The Occlusion View component also controls the resolution of the occlusion buffer for the camera, light, or reflection probe. The occlusion buffer resolution affects the resource intensity of the occlusion culling calculations. For more information about configuration options and performance, refer to [Optimize Burst occlusion culling](burst-occlusion-culling-optimize.md)
+You can enable and configure Burst Occlusion Culling on a per-camera, per-light, and per reflection probe basis. By default, only the [main camera](xref:UnityEngine.Camera.main) uses Burst Occlusion Culling. To enable Burst Occlusion Culling for a camera, light, and reflection probe, add the **Occlusion View** component and enable the **Occlusion Enable** property. The Occlusion View component also controls the resolution of the occlusion buffer for the camera, light, or reflection probe. The occlusion buffer resolution affects the resource intensity of the occlusion culling calculations. For more information about configuration options and performance, refer to [Optimize Burst Occlusion Culling](burst-occlusion-culling-optimize.md)
 
 ## Create occluders
 
@@ -34,4 +34,4 @@ To set up an entity as an occluder:
 
 ## Additional resources
 
-- [Optimize Burst occlusion culling](burst-occlusion-culling-optimize.md)
+- [Optimize Burst Occlusion Culling](burst-occlusion-culling-optimize.md)

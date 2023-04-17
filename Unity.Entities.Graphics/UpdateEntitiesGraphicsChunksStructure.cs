@@ -18,7 +18,9 @@ namespace Unity.Rendering
         private EntityQuery m_HasHybridChunkInfo;
 #endif
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is created.
+        /// </summary>
         protected override void OnCreate()
         {
             m_MissingHybridChunkInfo = GetEntityQuery(new EntityQueryDesc
@@ -62,7 +64,9 @@ namespace Unity.Rendering
 #endif
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Called when this system is updated.
+        /// </summary>
         protected override void OnUpdate()
         {
             UnityEngine.Profiling.Profiler.BeginSample("UpdateHybridChunksStructure");

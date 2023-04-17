@@ -3,16 +3,31 @@ using UnityEngine.Serialization;
 
 namespace Unity.Rendering.Occlusion
 {
+    /// <summary>
+    /// Specifies which entities are occluders and configures occluder settings.
+    /// </summary>
     public class Occluder : MonoBehaviour
     {
+        /// <summary>
+        /// The mesh to use for occlusion culling calculations.
+        /// </summary>
         [FormerlySerializedAs("Mesh")] public Mesh mesh;
 
+        /// <summary>
+        /// The position offset to apply to the occluder mesh.
+        /// </summary>
         [FormerlySerializedAs("relativePosition")]
         public Vector3 localPosition = Vector3.zero;
 
+        /// <summary>
+        /// The rotation offset to apply to the occluder mesh.
+        /// </summary>
         [FormerlySerializedAs("relativeRotation")]
         public Quaternion localRotation = Quaternion.identity;
 
+        /// <summary>
+        /// The scale offset to apply to the occluder mesh.
+        /// </summary>
         [FormerlySerializedAs("relativeScale")]
         public Vector3 localScale = Vector3.one;
 

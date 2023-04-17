@@ -87,7 +87,11 @@ namespace Unity.Entities.Graphics
         public bool IsInMotionPass =>
             MotionMode != MotionVectorGenerationMode.Camera;
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Indicates whether the current instance is equal to the specified object.
+        /// </summary>
+        /// <param name="obj">The object to compare with the current instance.</param>
+        /// <returns>Returns true if the current instance is equal to the specified object. Otherwise, returns false.</returns>
         public override bool Equals(object obj)
         {
             if (obj is RenderFilterSettings)
@@ -96,13 +100,20 @@ namespace Unity.Entities.Graphics
             return false;
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Indicates whether the current instance is equal to the specified RenderFilterSettings.
+        /// </summary>
+        /// <param name="other">The RenderFilterSettings to compare with the current instance.</param>
+        /// <returns>Returns true if the current instance is equal to the specified RenderFilterSettings. Otherwise, returns false.</returns>
         public bool Equals(RenderFilterSettings other)
         {
             return Layer == other.Layer && RenderingLayerMask == other.RenderingLayerMask && MotionMode == other.MotionMode && ShadowCastingMode == other.ShadowCastingMode && ReceiveShadows == other.ReceiveShadows && StaticShadowCaster == other.StaticShadowCaster;
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Calculates the hash code for this object.
+        /// </summary>
+        /// <returns>The hash code.</returns>
         public override int GetHashCode()
         {
             var hash = new xxHash3.StreamingState(true);
