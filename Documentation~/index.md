@@ -16,7 +16,3 @@ For information about Entities Graphics's requirements, see [Requirements and co
 ## Getting started with Entities Graphics
 
 For information on getting started with Entities Graphics, see the [Getting started](getting-started.md) section.
-
-## Additional resources
-
-* [Prerelease (1.0.0-pre.65) documentation](pre-release.md)

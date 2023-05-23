@@ -759,7 +759,7 @@ namespace Unity.Rendering
                     int defaultRendererDataIndex = (int)defaultRendererIndexField.GetValue(settings);
                     UniversalRendererData universalRendererData = rendererDatas[defaultRendererDataIndex] as UniversalRendererData;
                     var renderingModeField = typeof(UniversalRendererData).GetField("m_RenderingMode", BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (renderingModeField != null)
+                    if (renderingModeField != null && universalRendererData != null)
                     {
                         RenderingMode renderingMode = (RenderingMode)renderingModeField.GetValue(universalRendererData);
                         if (renderingMode != RenderingMode.ForwardPlus)

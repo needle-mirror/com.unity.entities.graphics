@@ -6,7 +6,7 @@ To render an entity, Entities Graphics requires that the entity contains a speci
 
 This API takes an entity and adds the components Entities Graphics requires based on the given mesh and material, and a `RenderMeshDescription`, which is a struct that describes additional rendering settings. There are two versions of the API:
 
-- One version accepts a `RenderMesh`. For information on the structure of a `RenderMesh`, see [RenderMesh](#rendermesh). Entities Graphics only uses this version during the GameObject conversion process; using this version at runtime doesn't produce rendering entities.
+- One version accepts a `RenderMesh`. For information on the structure of a `RenderMesh`, see [RenderMesh](#rendermesh). Entities Graphics only uses this version during the GameObject baking process; using this version at runtime doesn't produce rendering entities.
 - A second version accepts a `RenderMeshArray`. For information on the structure of a `RenderMeshArray`, see [RenderMeshArray](#rendermesharray). Use this version of `AddComponents` at runtime.
 
 ### RenderMeshDescription and RenderFilterSettings
@@ -15,13 +15,13 @@ A `RenderMeshDescription` struct describes when and how to draw an entity. It co
 
 ### RenderMesh
 
-A `RenderMesh` describes which mesh and material an entity should use. Entities Graphics uses the `RenderMesh` component during GameObject conversion before transforming the entity into a more efficient format.
+A `RenderMesh` describes which mesh and material an entity should use. Entities Graphics uses the `RenderMesh` component during GameObject baking before transforming the entity into a more efficient format.
 
-**Note**: Entities Graphics no longer uses this component at runtime. It only uses this component to simplify the GameObject conversion process.
+**Note**: Entities Graphics no longer uses this component at runtime. It only uses this component to simplify the GameObject baking process.
 
 ### RenderMeshArray
 
-A `RenderMeshArray` contains a list of meshes and materials that a collection of entities share. Each entity can efficiently select from any mesh and material inside this array using a `MaterialMeshInfo` component created using the `MaterialMeshInfo.FromRenderMeshArrayIndices` method. During GameObject conversion, Entities Graphics attempts to pack all meshes and materials in a single subscene into a single shared `RenderMeshArray` to minimize chunk fragmentation.
+A `RenderMeshArray` contains a list of meshes and materials that a collection of entities share. Each entity can efficiently select from any mesh and material inside this array using a `MaterialMeshInfo` component created using the `MaterialMeshInfo.FromRenderMeshArrayIndices` method. During GameObject baking, Entities Graphics attempts to pack all meshes and materials in a single subscene into a single shared `RenderMeshArray` to minimize chunk fragmentation.
 
 ### MaterialMeshInfo
 
@@ -34,7 +34,7 @@ The `MaterialMeshInfo` is a Burst-compatible plain data component that you can u
 
 This API tries to be as efficient as possible, but it is still a main-thread only API and therefore not suitable for creating a large number of entities. Instead, it is best practice to use `Instantiate` to efficiently clone existing entities then set their components (e.g. `Translation` or `LocalToWorld`) to new values afterward. This workflow has several advantages:
 
-- You can convert the base entity from a Prefab, or create it at runtime using `RenderMeshUtility.AddComponents`. Instantiation performance does not depend on which approach you use.
+- You can bake the base entity from a Prefab, or create it at runtime using `RenderMeshUtility.AddComponents`. Instantiation performance does not depend on which approach you use.
 - `Instantiate` and `SetComponent` / `SetComponentData` don't cause resource-intensive structural changes.
 - You can use `Instantiate` and `SetComponent` from Burst jobs using `EntityCommandBuffer.ParallelWriter`, which efficiently scales to multiple cores.
 - Internal Entities Graphics components are pre-created for the entities, which means that Entities Graphics does not need to create those components at runtime.

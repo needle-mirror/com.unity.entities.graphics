@@ -28,15 +28,17 @@ The **Culling** tab in the [Rendering debugger](https://docs.unity3d.com/Package
 </tr>
 <tr>
   <td><strong>Depth</strong></td>
-  <td>Visualizes the rasterized depth from the camera viewport.</td>
+  <td>Visualizes the occlusion depth buffer for the camera viewport. This view of the scene only contains occluders. The view also displays the occlusion mesh for the occluders; not their visual mesh.
+</td>
 </tr>
 <tr>
   <td><strong>Test</strong></td>
-  <td>Visualizes the rasterized depth and shows occluded entities as red squares.</td>
+  <td>Visualizes the occlusion depth buffer and shows occluded entities as red squares. This is the same view as **Depth** with the addition of red squares that show the bounds of the occludees that were determined to be hidden and thus not sent to the GPU for rendering in the current frame
+</td>
 </tr>
 <tr>
   <td><strong>Mesh</strong></td>
-  <td>Visualizes the occluders attached to GameObjects in the scene.</td>
+  <td>Visualizes the occluder meshes and uses a unique color per mesh. This helps you to view how each configured occlusion mesh aligns with the render mesh and to confirm if the mesh is inscribed.</td>
 </tr>
 <tr>
   <td><strong>Bounds</strong></td>
@@ -44,7 +46,7 @@ The **Culling** tab in the [Rendering debugger](https://docs.unity3d.com/Package
 </tr>
 <tr>
   <td><strong>Inverted</strong></td>
-  <td>Inverts the logic Unity uses to display culling results. When enabled, Unity shows culled objects and hides not-culled objects.</td>
+  <td>Inverts the logic Unity uses to display culling results. When enabled, Unity shows culled objects and hides not-culled objects. **Note**: Unity also renders all objects that aren't occluders or occludees. </td>
 </tr>
 </tbody>
 </table>

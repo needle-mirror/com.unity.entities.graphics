@@ -1,10 +1,11 @@
-## Mesh deformations
+## Mesh deformations (Experimental Feature)
+
+> [!IMPORTANT]
+> This version of mesh deformations is experimental. This means that it isn't yet ready to use for production and parts of the implementation and API will change. Also, this version doesn't support some features that exist for the Skinned Mesh Renderer component.
+
 This page describes how to use skinning and blendshapes to deform meshes. This is similar to what the [Skinned Mesh Renderer](https://docs.unity3d.com/Manual/class-SkinnedMeshRenderer.html) component does. 
 
-To use mesh deformations in your Unity Project, you first need to set up your project to support them. Then, to control deformations, write to either the [Skin Matrix](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Deformations.SkinMatrix.html) or [Blend Shape](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Deformations.BlendShapeWeight.html) ECS component. For examples on how to do this, refer to the [MeshDeformations](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridURPSamples/Assets/SampleScenes/MeshDeformations) and [Skinned Character](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridURPSamples/Assets/SampleScenes/SkinnedCharacter) scenes in [HybrdidURPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridURPSamples) and [HybridHDRPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/HybridHDRPSamples).
-
-## Disclaimer
-This version of mesh deformations is experimental. This means that it isn't yet ready to use for production and parts of the implementation and API will change. Also, this version doesn't support some features that exist for the Skinned Mesh Renderer component.
+To use mesh deformations in your Unity Project, you first need to set up your project to support them. Then, to control deformations, write to either the [Skin Matrix](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Deformations.SkinMatrix.html) or [Blend Shape](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Deformations.BlendShapeWeight.html) ECS component. For examples on how to do this, refer to the [MeshDeformations](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/GraphicsSamples/URPSamples/Assets/SampleScenes/5.%20Deformation/MeshDeformations) and [SkinnedCharacter](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/GraphicsSamples/URPSamples/Assets/SampleScenes/5.%20Deformation/SkinnedCharacter) scenes in [URPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/GraphicsSamples/URPSamples) and [HDRPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/GraphicsSamples/HDRPSamples).
 
 ## Setup
 
@@ -22,7 +23,7 @@ Before you can use mesh deformations in your Unity project, you must set up your
 2. If you intend to use per-vertex motion vectors, go to Project Settings (menu: **Edit** > **Project Settings**) and, in the Player section, add `ENABLE_DOTS_DEFORMATION_MOTION_VECTORS` to **Scripting Define Symbols**. Unity currently only supports this when using the High Definition Render Pipeline. **Note**: To apply changes to the define, you must re-save any Shader Graphs.
 3. Create a Skinned Mesh Renderer with compatible materials using the [Mesh setup](#mesh-setup) and [Material setup](#material-setup) steps.
 
-When Unity [converts](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/manual/conversion.html) a GameObject or Prefab that contains a Skinned Mesh Renderer component into an entity, it adds the correct deformation ECS components. Furthermore, the deformation systems dispatch and apply the deformations to the mesh.
+When Unity [bakes](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/manual/baking.html) a GameObject or Prefab that contains a Skinned Mesh Renderer component into an entity, it adds the correct deformation ECS components. Furthermore, the deformation systems dispatch and apply the deformations to the mesh.
 
 > [!NOTE]
 > To create motion, write to the SkinMatrix and BlendShapeWeights ECS components.
@@ -65,6 +66,7 @@ Vertex shader skinning skins the mesh on the GPU in the vertex shader. To enable
 - Deformed meshes can disappear or show in their bind pose when Unity renders them as GameObjects.
 - Compute deformation performance varies based on GPU.
 - Not compatible with VFX Graph.
+- OpenGLCore is not supported on desktop in the experimental version.
 
 ## Feature comparison
 
@@ -72,11 +74,11 @@ Vertex shader skinning skins the mesh on the GPU in the vertex shader. To enable
 | ------------------------------------------------- | --------------------------| ----------------------|
 | Linear Blend Skinning 							| Supported 				| Supported |
 | Blend Shapes 										| Supported 				| Supported |
-| Per Vertex Motion Vectors 						| [Supported](https://docs.unity3d.com/ScriptReference/SkinnedMeshRenderer-skinnedMotionVectors.html) | Only in HDRP (With define) |
+| Per Vertex Motion Vectors 						| [Supported](xref:UnityEngine.SkinnedMeshRenderer.skinnedMotionVectors) | Only in HDRP (With define) |
 | Optional normals & tangents 						| Supported 				| --- |
-| Resizeable render bounds based on animated pose 	| [Supported](https://docs.unity3d.com/ScriptReference/SkinnedMeshRenderer-updateWhenOffscreen.html) | --- |
-| Bake Mesh 										| [Supported](https://docs.unity3d.com/ScriptReference/SkinnedMeshRenderer.BakeMesh.html) | --- |
+| Resizeable render bounds based on animated pose 	| [Supported](xref:UnityEngine.SkinnedMeshRenderer.updateWhenOffscreen) | --- |
+| Bake Mesh 										| [Supported](xref:UnityEngine.SkinnedMeshRenderer.BakeMesh(UnityEngine.Mesh)) | --- |
 | Cloth Simulation 									| Supported 				| --- |
 | Quality setting for limiting skin influences 		| Supported 				| --- |
-| CPU Deformations 									| [Supported](https://docs.unity3d.com/ScriptReference/PlayerSettings-gpuSkinning.html) | --- |
+| CPU Deformations 									| [Supported](xref:UnityEditor.PlayerSettings.gpuSkinning) | --- |
 | Blend Shape Frames 								| Supported 				| --- |

@@ -200,7 +200,7 @@ namespace Unity.Rendering
             var meshToIndex = renderMeshArray.GetMeshToIndexMapping();
             var materialToIndex = renderMeshArray.GetMaterialToIndexMapping();
 
-            EntityManager.SetSharedComponentManaged(m_RenderMeshEntities, renderMeshArray);
+            EntityManager.AddSharedComponentManaged(m_RenderMeshEntities, renderMeshArray);
 
             var entities = m_RenderMeshEntities.ToEntityArray(Allocator.Temp);
 

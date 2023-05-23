@@ -11,5 +11,5 @@ Entities Graphics provides sample scenes to show you material overrides using bo
 
 The paths to the per-render pipeline sample scenes are as follows:
 
-- **HDRP**: **HybridHDRPSamples > SampleScenes > MaterialOverridesSample**
-- **URP**: **HybridURPSamples > SampleScenes > MaterialOverridesSample**
+- **HDRP**: **HDRPSamples > SampleScenes > 2. MaterialProperties > MaterialOverridesSample**
+- **URP**: **URPSamples > SampleScenes > 2. MaterialProperties > MaterialOverridesSample**

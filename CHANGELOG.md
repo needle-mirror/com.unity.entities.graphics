@@ -1,5 +1,50 @@
+---
+uid: changelog
+---
 
 # Changelog
+
+
+## [1.0.10] - 2023-05-23
+
+### Fixed
+
+* Fixed Gizmos for components inside the subscene.
+* Fixed HDRP/AxF shader error when using it on objects in the subscene.
+* Fixed light cookies shader error.
+* Fixed Standalone crash due to deadlocks.
+* Fixed missing volume component from standalone player.
+* Fixed URP Particle Shaders error on MeshRenderer in subscene.
+* Fixed URP Forward+ check sometimes failing in URP Projects configured for 2D rendering.
+
+### Known Issues
+
+* The workflow with auto-generated lightmaps is not supported and for entity-based applications it is disabled. Therefore, lightmaps should manually be generated through Window > Rendering > Lighting.
+* When there is no directional light outside the subscene, ambient lighting will be missing from the editor's playmode and the player. Other lighting data e.g. max distance for cascade shadows will also be different compared to when directional light is outside the subscene.
+* If there a camera renders into a RenderTexture and this RenderTexture is assigned on a material on a MeshRenderer object inside the subscene, the RenderTexture will be incorrect in player.
+* Shader variants for DOTS_INSTANCING_ON will always be compiled and included in player build as they are not being stripped even if they are not in use. This could result in longer player build time and potentially increase runtime memory usage.
+* If a scene has fog enabled or has lightmap, and if the subscene does not have the same fog / lightmap settings, when making a player build, the subscene objects will be rendering wrong as they have wrong fog mode / lightmap modes as the shader variant is being stripped.
+* Preview is not supported for ParticleSystem and VisualEffect (VFX) objects in subscene.
+* ParticleSystem in subscene with Light module won't render the lights.
+* When HDRP PlanarReflectionProbe object is in subscene, it is expected that the 'Maximum Planar Reflection Probes on Screen' property in the HDRP asset needs to be increased.
+* Subtractive lighting mode renders incorrectly in subscene.
+* HDRP LocalVolumetricFog component renders 2x density in subscene.
+* HDRP LitTessellation shader errors on OSX Metal.
+* LOD max level does not work for entities.
+* LOD crossfade is not supported for entities.
+* Vertex attributes in Rendering Debugger renders pink for entities in URP.
+* URP Decal Projector does not work inside the subscene.
+* Lens flare component is not supported in subscene.
+* Textmesh Pro component is not supported in subscene.
+* UI and Canvas components are not supported in subscene.
+* SpeedTree shaders are not supported in subscene in URP.
+* Universal render Pipeline/ 2D shaders are not supported on a MeshRenderer. Note: SpriteRenderer components are companion components.
+* Universal render Pipeline/VR shaders are not supported in subscene.
+* Terrains are not supported in subscene.
+* On Console, there is a subscene async load crash issue that might cause player build crashes very quickly after running.
+* On Console, there might be some lighting artifacts due to GfxDevice issues.
+* On Console, objects in scenes with multiple cameras might flicker in player due to an issue in native graphics jobs.
+
 
 ## [1.0.8] - 2023-04-17
 

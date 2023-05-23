@@ -41,7 +41,7 @@ If you want to override a built-in HDRP or URP property not listed here, you can
 
 ## Custom Shader Graph Material overrides
 
-You can create your own custom Shader Graph properties, and expose them to DOTS as IComponentData. This allows you to write C#/Burst code to setup and animate your own shader inputs. To do this, see the following steps:
+You can create your own custom Shader Graph properties, and expose them to ECS as IComponentData. This allows you to write C#/Burst code to setup and animate your own shader inputs. To do this, see the following steps:
 
 ### Shader Graph Asset
 
@@ -51,7 +51,7 @@ You can create your own custom Shader Graph properties, and expose them to DOTS 
 
 ### IComponentData
 
-For the DOTS IComponentData struct, use the `MaterialProperty` Attribute, passing in the **Reference** and type for the Shader Graph property. For example, the IComponentData for the color (float4) property in the above step would be:
+For the IComponentData struct, use the `MaterialProperty` Attribute, passing in the **Reference** and type for the Shader Graph property. For example, the IComponentData for the color (float4) property in the above step would be:
 
 ```
 [MaterialProperty("_Color")]
