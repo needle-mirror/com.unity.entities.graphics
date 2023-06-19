@@ -512,7 +512,7 @@ namespace Unity.Rendering
 #if ENABLE_MATERIALMESHINFO_BOUNDS_CHECKING
             // Fire jobs to remap offline->runtime indices
             m_EntitiesWithOutOfBoundsMMI = new NativeList<Entity>(
-                m_ChangedMaterialMeshQuery.CalculateEntityCount(),
+                m_ChangedMaterialMeshQuery.CalculateEntityCountWithoutFiltering(),
                 WorldUpdateAllocator);
             m_BoundsCheckHandle = new BoundsCheckMaterialMeshIndexJob
                 {
@@ -1126,7 +1126,7 @@ namespace Unity.Rendering
         {
             JobHandle done = default;
             Profiler.BeginSample("UpdateAllBatches");
-            if (m_EntitiesGraphicsRenderedQuery.CalculateChunkCount() > 0)
+            if (!m_EntitiesGraphicsRenderedQuery.IsEmptyIgnoreFilter)
             {
                 done = UpdateAllBatches(inputDependencies);
             }
@@ -1466,7 +1466,7 @@ namespace Unity.Rendering
             }
 
             var visibilityItems = new IndirectList<ChunkVisibilityItem>(
-                m_EntitiesGraphicsRenderedQueryRO.CalculateChunkCount(),
+                m_EntitiesGraphicsRenderedQueryRO.CalculateChunkCountWithoutFiltering(),
                 m_ThreadLocalAllocators.GeneralAllocator);
 
             var frustumCullingJob = new FrustumCullingJob
@@ -1727,7 +1727,7 @@ namespace Unity.Rendering
             Profiler.EndSample();
 
             var numNewChunksArray = new NativeArray<int>(1, Allocator.TempJob);
-            int totalChunks = m_EntitiesGraphicsRenderedQuery.CalculateChunkCount();
+            int totalChunks = m_EntitiesGraphicsRenderedQuery.CalculateChunkCountWithoutFiltering();
             var newChunks = new NativeArray<ArchetypeChunk>(
                 totalChunks,
                 Allocator.TempJob,

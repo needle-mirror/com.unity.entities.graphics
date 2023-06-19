@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "unity": "2022.2",
   "unityRelease": "15f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.0.10",
+    "com.unity.entities": "1.0.11",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.6"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Fixed\n\n* Fixed Gizmos for components inside the subscene.\n* Fixed HDRP/AxF shader error when using it on objects in the subscene.\n* Fixed light cookies shader error.\n* Fixed Standalone crash due to deadlocks.\n* Fixed missing volume component from standalone player.\n* Fixed URP Particle Shaders error on MeshRenderer in subscene.\n* Fixed URP Forward+ check sometimes failing in URP Projects configured for 2D rendering.\n\n### Known Issues\n\n* The workflow with auto-generated lightmaps is not supported and for entity-based applications it is disabled. Therefore, lightmaps should manually be generated through Window > Rendering > Lighting.\n* When there is no directional light outside the subscene, ambient lighting will be missing from the editor's playmode and the player. Other lighting data e.g. max distance for cascade shadows will also be different compared to when directional light is outside the subscene.\n* If there a camera renders into a RenderTexture and this RenderTexture is assigned on a material on a MeshRenderer object inside the subscene, the RenderTexture will be incorrect in player.\n* Shader variants for DOTS_INSTANCING_ON will always be compiled and included in player build as they are not being stripped even if they are not in use. This could result in longer player build time and potentially increase runtime memory usage.\n* If a scene has fog enabled or has lightmap, and if the subscene does not have the same fog / lightmap settings, when making a player build, the subscene objects will be rendering wrong as they have wrong fog mode / lightmap modes as the shader variant is being stripped.\n* Preview is not supported for ParticleSystem and VisualEffect (VFX) objects in subscene.\n* ParticleSystem in subscene with Light module won't render the lights.\n* When HDRP PlanarReflectionProbe object is in subscene, it is expected that the 'Maximum Planar Reflection Probes on Screen' property in the HDRP asset needs to be increased.\n* Subtractive lighting mode renders incorrectly in subscene.\n* HDRP LocalVolumetricFog component renders 2x density in subscene.\n* HDRP LitTessellation shader errors on OSX Metal.\n* LOD max level does not work for entities.\n* LOD crossfade is not supported for entities.\n* Vertex attributes in Rendering Debugger renders pink for entities in URP.\n* URP Decal Projector does not work inside the subscene.\n* Lens flare component is not supported in subscene.\n* Textmesh Pro component is not supported in subscene.\n* UI and Canvas components are not supported in subscene.\n* SpeedTree shaders are not supported in subscene in URP.\n* Universal render Pipeline/ 2D shaders are not supported on a MeshRenderer. Note: SpriteRenderer components are companion components.\n* Universal render Pipeline/VR shaders are not supported in subscene.\n* Terrains are not supported in subscene.\n* On Console, there is a subscene async load crash issue that might cause player build crashes very quickly after running.\n* On Console, there might be some lighting artifacts due to GfxDevice issues.\n* On Console, objects in scenes with multiple cameras might flicker in player due to an issue in native graphics jobs."
+    "changelog": "### Changed\n* Updated com.unity.entities dependency to 1.0.11"
   },
   "upmCi": {
-    "footprint": "6fe4ea258968962ccd225ece0655808c227c4f7c"
+    "footprint": "21211a37816d5a54aa9fe8539f7e2b4153234418"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "464acdc5351df3c5deeb425d7aa31f4c7b20c0cf"
+    "revision": "81c21934f16a49fc5f826187f07aaea4728d63c3"
   }
 }

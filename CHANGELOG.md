@@ -1,8 +1,10 @@
----
-uid: changelog
----
-
 # Changelog
+
+
+## [1.0.11] - 2023-06-19
+
+### Changed
+* Updated com.unity.entities dependency to 1.0.11
 
 
 ## [1.0.10] - 2023-05-23
@@ -64,7 +66,6 @@ uid: changelog
 * Entities Graphics Occlusion shader throws errors when building the project
 * Fixed a GraphicsBuffer leak that could occur in cases where Entities Graphics is running without any entities to render.
 * enabling/disabling per-view occlusion
-
 
 ## [1.0.0-pre.65] - 2023-03-21
 
