@@ -1743,6 +1743,7 @@ namespace Unity.Rendering
 #if UNITY_EDITOR
         [NativeDisableUnsafePtrRestriction]
         public EntitiesGraphicsPerThreadStats* Stats;
+        public BatchCullingViewType ViewType;
 
 #pragma warning disable 649
         [NativeSetThreadIndex]
@@ -1797,7 +1798,17 @@ namespace Unity.Rendering
                 numInstances -= draw.visibleCount;
 
 #if UNITY_EDITOR
-                stats.RenderedEntityCount += (int)draw.visibleCount;
+                if (ViewType == BatchCullingViewType.Camera)
+                {
+                    // Split mask is not set and not used when rendering on the main view
+                    stats.RenderedEntityCount += (int)draw.visibleCount;
+                }
+                else if (ViewType == BatchCullingViewType.Light)
+                {
+                    // Multiply by the number of visible split mask.
+                    // When rendering shadow maps, each draw command will be processed once per enabled split.
+                    stats.RenderedEntityCount += (int)draw.visibleCount * math.countbits((int)settings.SplitMask);
+                }
 #endif
             }
 #if UNITY_EDITOR

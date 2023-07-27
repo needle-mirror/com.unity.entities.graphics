@@ -1,6 +1,20 @@
 # Changelog
 
 
+## [1.0.14] - 2023-07-27
+
+### Added
+
+* Improve receiver sphere culling to make it more precise.
+
+### Changed
+
+* Updated com.unity.entities dependency to 1.0.14
+
+
+
+### Security
+
 ## [1.0.11] - 2023-06-19
 
 ### Changed

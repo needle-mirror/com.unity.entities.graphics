@@ -48,7 +48,7 @@ public class MaterialOverrideAsset : ScriptableObject
         /// </summary>
         public Vector4 value;
 
-        
+
         /// <summary>
         /// Instance override.
         /// </summary>
@@ -124,7 +124,7 @@ public class MaterialOverrideAsset : ScriptableObject
     /// <inheritdoc/>
     public void OnValidate()
     {
-        foreach (var overrideComponent in FindObjectsOfType<MaterialOverride>())
+        foreach (var overrideComponent in FindObjectsByType<MaterialOverride>(FindObjectsSortMode.None))
         {
             if (overrideComponent.overrideAsset == this)
             {

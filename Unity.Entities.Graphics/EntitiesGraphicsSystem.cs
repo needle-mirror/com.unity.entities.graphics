@@ -1573,6 +1573,7 @@ namespace Unity.Rendering
                 DrawCommandOutput = chunkDrawCommandOutput,
 #if UNITY_EDITOR
                 Stats = m_PerThreadStats,
+                ViewType = cullingContext.viewType,
 #endif
             };
 
