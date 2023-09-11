@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [1.0.16] - 2023-09-11
+
+### Changed
+* Updated com.unity.entities dependency to 1.0.16
+
+
 ## [1.0.14] - 2023-07-27
 
 ### Added
@@ -10,10 +16,6 @@
 ### Changed
 
 * Updated com.unity.entities dependency to 1.0.14
-
-
-
-### Security
 
 ## [1.0.11] - 2023-06-19
 
