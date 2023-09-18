@@ -3,7 +3,6 @@ using Unity.Entities;
 
 namespace Unity.Rendering
 {
-    
     /// <summary>
     /// Frozen scene tag.
     /// </summary>

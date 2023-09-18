@@ -5,10 +5,12 @@ using Unity.Rendering;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-
 /// <summary>
 /// Represents a material property override asset.
 /// </summary>
+/// <remarks>
+/// This enables you to override material properties for an authoring GameObject.
+/// </remarks>
 [CreateAssetMenu(fileName = "MaterialOverrideAsset", menuName = "Shader/Material Override Asset", order = 1)] //TODO(andrew.theisen): where should this live in the menu?
 public class MaterialOverrideAsset : ScriptableObject
 {
@@ -29,7 +31,7 @@ public class MaterialOverrideAsset : ScriptableObject
         public string displayName;
 
         /// <summary>
-        /// The name of the sahder.
+        /// The name of the shader.
         /// </summary>
         public string shaderName;
 
@@ -47,7 +49,6 @@ public class MaterialOverrideAsset : ScriptableObject
         /// The override value of the material property.
         /// </summary>
         public Vector4 value;
-
 
         /// <summary>
         /// Instance override.

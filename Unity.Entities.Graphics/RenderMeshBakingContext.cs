@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Assertions;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
@@ -272,14 +273,14 @@ namespace Unity.Rendering
 
         public void CollectLightMapUsage(Renderer renderer)
         {
-            Debug.Assert(m_LightMapBakingContext != null,
+            Assert.IsTrue(m_LightMapBakingContext != null,
             "LightMapConversionContext must be set to call light mapping conversion methods.");
             m_LightMapBakingContext.CollectLightMapUsage(renderer);
         }
 
         public void ProcessLightMapsForConversion()
         {
-            Debug.Assert(m_LightMapBakingContext != null,
+            Assert.IsTrue(m_LightMapBakingContext != null,
             "LightMapConversionContext must be set to call light mapping conversion methods.");
             m_LightMapBakingContext.ProcessLightMapsForConversion();
         }

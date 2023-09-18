@@ -34,6 +34,7 @@ namespace Unity.Rendering
     {
         public float MinDist;
         public float MaxDist;
+        public int LODMask;
 
         public LODRange(MeshLODGroupComponent lodGroup, int lodMask)
         {
@@ -82,6 +83,7 @@ namespace Unity.Rendering
 
             MinDist = minDist;
             MaxDist = maxDist;
+            LODMask = lodMask;
         }
     }
 
@@ -220,6 +222,7 @@ namespace Unity.Rendering
                     {
                         rootLod.LOD.MinDist = 0;
                         rootLod.LOD.MaxDist = 1048576.0f;
+                        rootLod.LOD.LODMask = 0;
                     }
                     else
                     {

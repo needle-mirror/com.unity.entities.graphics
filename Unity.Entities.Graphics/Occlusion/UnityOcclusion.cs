@@ -88,6 +88,13 @@ namespace Unity.Rendering.Occlusion
         public void Dispose()
         {
             debugSettings.Unregister();
+
+            m_OcclusionMeshQuery.Dispose();
+            m_ReadonlyTestQuery.Dispose();
+            m_ReadonlyMeshQuery.Dispose();
+            m_OcclusionTestTransformGroup.Dispose();
+            m_OcclusionTestGroup.Dispose();
+
             foreach (var bufferGroup in BufferGroups.Values)
             {
                 bufferGroup.Dispose();

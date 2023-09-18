@@ -1,5 +1,6 @@
 #if ENABLE_UNITY_OCCLUSION && (HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER) && UNITY_EDITOR
 
+using Unity.Assertions;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -48,7 +49,7 @@ namespace Unity.Rendering.Occlusion.Masked.Dots
             using var meshDataArray = MeshUtility.AcquireReadOnlyMeshData(occluder.mesh);
             // Since we passed in only one mesh to `Mesh.AcquireReadOnlyMeshData()`, the array is guaranteed to have
             // only one mesh data.
-            Debug.Assert(meshDataArray.Length == 1);
+            Assert.IsTrue(meshDataArray.Length == 1);
             var meshData = meshDataArray[0];
 
 

@@ -18,3 +18,15 @@ apiRules:
   - exclude:
       uidRegex: Tests$
       type: Namespace
+  - exclude:
+      uidRegex: ^Unity\.Rendering\.DeformationsInPresentation\.On(Update|Create|Destroy)
+      type: Method
+  - exclude:
+      uidRegex: ^Unity\.Rendering\.EntitiesGraphicsSystem\.On(Update|Create|Destroy)
+      type: Method
+  - exclude:
+      uidRegex: ^Unity\.Rendering\.UpdateHybridChunksStructure\.On(Update|Create|Destroy)
+      type: Method
+  - exclude:
+      uidRegex: ^Unity\.Rendering\.HybridLightBakingDataSystem\.On(Update|Create|Destroy)
+      type: Method

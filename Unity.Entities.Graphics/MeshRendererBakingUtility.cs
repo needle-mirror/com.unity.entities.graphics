@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Assertions;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
@@ -8,11 +9,19 @@ namespace Unity.Rendering
 {
     class MeshRendererBakingUtility
     {
+        enum ConversionMode
+        {
+            Null,
+            AttachToPrimaryEntity,
+            AttachToPrimaryEntityForSingleMaterial,
+            AttachToMultipleEntities
+        }
+
         struct LODState
         {
             public LODGroup LodGroup;
             public Entity LodGroupEntity;
-            public int LodGroupIndex;
+            public int LodGroupMask;
         }
 
         static void CreateLODState<T>(Baker<T> baker, Renderer authoringSource, out LODState lodState) where T : Component
@@ -21,7 +30,7 @@ namespace Unity.Rendering
             lodState = new LODState();
             lodState.LodGroup = baker.GetComponentInParent<LODGroup>();
             lodState.LodGroupEntity = baker.GetEntity(lodState.LodGroup, TransformUsageFlags.Renderable);
-            lodState.LodGroupIndex = FindInLODs(lodState.LodGroup, authoringSource);
+            lodState.LodGroupMask = FindInLODs(lodState.LodGroup, authoringSource);
         }
 
         private static int FindInLODs(LODGroup lodGroup, Renderer authoring)
@@ -30,6 +39,8 @@ namespace Unity.Rendering
             {
                 var lodGroupLODs = lodGroup.GetLODs();
 
+                int lodGroupMask = 0;
+
                 // Find the renderer inside the LODGroup
                 for (int i = 0; i < lodGroupLODs.Length; ++i)
                 {
@@ -37,10 +48,11 @@ namespace Unity.Rendering
                     {
                         if (renderer == authoring)
                         {
-                            return i;
+                            lodGroupMask |= (1 << i);
                         }
                     }
                 }
+                return lodGroupMask > 0 ? lodGroupMask : -1;
             }
             return -1;
         }
@@ -48,19 +60,11 @@ namespace Unity.Rendering
 #pragma warning disable CS0162
         private static void AddRendererComponents<T>(Entity entity, Baker<T> baker, in RenderMeshDescription renderMeshDescription, RenderMesh renderMesh) where T : Component
         {
-            // Entities with Static are never rendered with motion vectors
-            bool inMotionPass = RenderMeshUtility.kUseHybridMotionPass &&
-                                renderMeshDescription.FilterSettings.IsInMotionPass &&
-                                !baker.IsStatic();
-
-            RenderMeshUtility.EntitiesGraphicsComponentFlags flags = RenderMeshUtility.EntitiesGraphicsComponentFlags.Baking;
-            if (inMotionPass) flags |= RenderMeshUtility.EntitiesGraphicsComponentFlags.InMotionPass;
-            flags |= RenderMeshUtility.LightProbeFlags(renderMeshDescription.LightProbeUsage);
-            flags |= RenderMeshUtility.DepthSortedFlags(renderMesh.material);
-
             // Add all components up front using as few calls as possible.
-            var componentTypes = RenderMeshUtility.s_EntitiesGraphicsComponentTypes.GetComponentTypes(flags);
-            baker.AddComponent(entity, componentTypes);
+            var componentSet = RenderMeshUtility.ComputeComponentTypes(
+                RenderMeshUtility.EntitiesGraphicsComponentFlags.Baking,
+                renderMeshDescription, baker.IsStatic(), renderMesh.materials);
+            baker.AddComponent(entity, componentSet);
 
             baker.SetSharedComponentManaged(entity, renderMesh);
             baker.SetSharedComponentManaged(entity, renderMeshDescription.FilterSettings);
@@ -69,8 +73,44 @@ namespace Unity.Rendering
             baker.SetComponent(entity, new RenderBounds { Value = localBounds });
         }
 
-        internal static void Convert<T>(Baker<T> baker, Renderer authoring, Mesh mesh, List<Material> sharedMaterials, bool attachToPrimaryEntityForSingleMaterial, out List<Entity> additionalEntities, UnityEngine.Transform root = null) where T : Component
+        internal static void ConvertToMultipleEntities<T>(Baker<T> baker,
+            Renderer authoring,
+            Mesh mesh,
+            List<Material> sharedMaterials,
+            Transform root,
+            out List<Entity> additionalEntities) where T : Component
         {
+            Convert(baker, authoring, mesh, sharedMaterials, ConversionMode.AttachToMultipleEntities, root, out additionalEntities);
+        }
+
+        internal static void ConvertOnPrimaryEntityForSingleMaterial<T>(Baker<T> baker,
+            Renderer authoring,
+            Mesh mesh,
+            List<Material> sharedMaterials,
+            Transform root,
+            out List<Entity> additionalEntities) where T : Component
+        {
+            Convert(baker, authoring, mesh, sharedMaterials, ConversionMode.AttachToPrimaryEntityForSingleMaterial, root, out additionalEntities);
+        }
+
+        internal static void ConvertOnPrimaryEntity<T>(Baker<T> baker,
+            Renderer authoring,
+            Mesh mesh,
+            List<Material> sharedMaterials) where T : Component
+        {
+            Convert(baker, authoring, mesh, sharedMaterials, ConversionMode.AttachToPrimaryEntity, null, out _);
+        }
+
+        private static void Convert<T>(Baker<T> baker,
+            Renderer authoring,
+            Mesh mesh,
+            List<Material> sharedMaterials,
+            ConversionMode conversionMode,
+            Transform root,
+            out List<Entity> additionalEntities) where T : Component
+        {
+            Assert.IsTrue(conversionMode != ConversionMode.Null);
+
             additionalEntities = new List<Entity>();
 
             if (mesh == null || sharedMaterials.Count == 0)
@@ -101,7 +141,11 @@ namespace Unity.Rendering
                     desc.FilterSettings.MotionMode = MotionVectorGenerationMode.Camera;
             }
 
-            if (attachToPrimaryEntityForSingleMaterial && sharedMaterials.Count == 1)
+            bool attachToPrimaryEntity = false;
+            attachToPrimaryEntity |= conversionMode == ConversionMode.AttachToPrimaryEntity;
+            attachToPrimaryEntity |= conversionMode == ConversionMode.AttachToPrimaryEntityForSingleMaterial && sharedMaterials.Count == 1;
+
+            if (attachToPrimaryEntity)
             {
                 ConvertToSingleEntity(
                     baker,
@@ -136,9 +180,9 @@ namespace Unity.Rendering
 
             AddRendererComponents(entity, baker, renderMeshDescription, renderMesh);
 
-            if (lodState.LodGroupEntity != Entity.Null && lodState.LodGroupIndex != -1)
+            if (lodState.LodGroupEntity != Entity.Null && lodState.LodGroupMask != -1)
             {
-                var lodComponent = new MeshLODComponent { Group = lodState.LodGroupEntity, LODMask = 1 << lodState.LodGroupIndex };
+                var lodComponent = new MeshLODComponent { Group = lodState.LodGroupEntity, LODMask = lodState.LodGroupMask };
                 baker.AddComponent(entity, lodComponent);
             }
         }
@@ -197,9 +241,9 @@ namespace Unity.Rendering
                     renderMeshDescription,
                     renderMesh);
 
-                if (lodState.LodGroupEntity != Entity.Null && lodState.LodGroupIndex != -1)
+                if (lodState.LodGroupEntity != Entity.Null && lodState.LodGroupMask != -1)
                 {
-                    var lodComponent = new MeshLODComponent { Group = lodState.LodGroupEntity, LODMask = 1 << lodState.LodGroupIndex };
+                    var lodComponent = new MeshLODComponent { Group = lodState.LodGroupEntity, LODMask = lodState.LodGroupMask };
                     baker.AddComponent(meshEntity, lodComponent);
                 }
             }

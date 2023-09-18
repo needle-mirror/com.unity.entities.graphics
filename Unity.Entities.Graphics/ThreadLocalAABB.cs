@@ -1,4 +1,5 @@
-﻿using Unity.Burst;
+﻿using Unity.Assertions;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -21,7 +22,7 @@ namespace Unity.Rendering
 
         public static void AssertCacheLineSize()
         {
-            Debug.Assert(UnsafeUtility.SizeOf<ThreadLocalAABB>() == JobsUtility.CacheLineSize,
+            Assert.IsTrue(UnsafeUtility.SizeOf<ThreadLocalAABB>() == JobsUtility.CacheLineSize,
                 "ThreadLocalAABB should have a size equal to the CPU cache line size");
         }
     }

@@ -97,7 +97,6 @@ namespace Unity.Rendering
         /// </summary>
         internal uint MinimumAlignment { get { return 1u << m_MinimumAlignmentLog2; } }
         
-        
         /// <summary>
         /// The amount of available free space in the allocator.
         /// </summary>

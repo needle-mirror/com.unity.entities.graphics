@@ -3,7 +3,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
+using Unity.Assertions;
 
 namespace Unity.Rendering
 {
@@ -41,7 +41,7 @@ namespace Unity.Rendering
         {
             // Use indices without flags so we have a nice compact range
             int i = GetArrayIndex(typeIndex);
-            Debug.Assert(!UsedTypes.ContainsKey(i) || UsedTypes[i] == typeIndex,
+            Assert.IsTrue(!UsedTypes.ContainsKey(i) || UsedTypes[i] == typeIndex,
                 "typeIndex is not consistent with its stored array index");
             UsedTypes[i] = typeIndex;
             MaxIndex = math.max(i, MaxIndex);
@@ -219,9 +219,12 @@ namespace Unity.Rendering
                 return fixedT0[TypeIndexToArrayIndex[GetArrayIndex(typeIndex)]];
             }
 
-            public void Dispose(JobHandle disposeDeps)
+            public JobHandle Dispose(JobHandle disposeDeps)
             {
-                if (TypeIndexToArrayIndex.IsCreated) TypeIndexToArrayIndex.Dispose(disposeDeps);
+                if (TypeIndexToArrayIndex.IsCreated)
+                    return TypeIndexToArrayIndex.Dispose(disposeDeps);
+                else
+                    return new JobHandle();
             }
         }
 
@@ -229,8 +232,8 @@ namespace Unity.Rendering
         {
             BurstCompatibleTypeArray typeArray = default;
 
-            Debug.Assert(UsedTypeCount > 0, "No types have been registered");
-            Debug.Assert(UsedTypeCount <= BurstCompatibleTypeArray.kMaxTypes, "Maximum supported amount of types exceeded");
+            Assert.IsTrue(UsedTypeCount > 0, "No types have been registered");
+            Assert.IsTrue(UsedTypeCount <= BurstCompatibleTypeArray.kMaxTypes, "Maximum supported amount of types exceeded");
 
             typeArray.TypeIndexToArrayIndex = new NativeArray<int>(
                 MaxIndex + 1,

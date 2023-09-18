@@ -151,7 +151,7 @@ namespace Unity.Rendering
         /// Calculates the current LOD index.
         /// </summary>
         /// <param name="lodDistances">The distances at which to switch between each LOD.</param>
-        /// <param name="scale">The current LOD scale.</param> 
+        /// <param name="scale">The current LOD scale.</param>
         /// <param name="worldReferencePoint">A world-space reference point to base the LOD index calculation on.</param>
         /// <param name="lodParams">The LOD parameters to use.</param>
         /// <returns>Returns the calculated LOD index.</returns>
@@ -166,7 +166,7 @@ namespace Unity.Rendering
         /// Calculates the current LOD mask.
         /// </summary>
         /// <param name="lodDistances">The distances at which to switch between each LOD.</param>
-        /// <param name="scale">Current scale.</param> 
+        /// <param name="scale">Current scale.</param>
         /// <param name="worldReferencePoint">A world-space reference point to base the LOD index calculation on.</param>
         /// <param name="lodParams">The LOD parameters to use.</param>
         /// <returns>Returns the calculated LOD mask.</returns>

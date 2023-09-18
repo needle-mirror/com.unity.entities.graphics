@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.1.0-exp.1] - 2023-09-18
+
+### Added
+
+* Support for using a mesh in multiple LODs within a LODGroup when in a subscene.
+* A variation of RenderMeshUtility.AddComponents that does not need a RenderMeshArray
+* Support maximum LOD level quality setting within a subscene.
+* Add support for multiple submeshes per entity. Stop creating one entity per submesh unless skinning is used.
+* Support for decal projector components in a subscene.
+* Cull based on CullLightmapShadowCasters flag in FrustumCullingJob
+
+### Changed
+
+* MaterialMeshInfo now inherits IEnableable and allows high frequency state changes
+
+### Fixed
+
+* Address incorrect motion vector calculation on initial frame.
+* JobTempAlloc warnings that might occur under some circumstances.
+* Rendering without a RenderMeshArray component
+* Addresses rendering artifacts when Entities Graphics GPU allocation fails
+* Memory leaks in Burst Occlusion Culling
+* Support for DecalProjector in URP added to CompanionComponentSupportedTypes
+
 
 ## [1.0.16] - 2023-09-11
 
@@ -16,6 +40,9 @@
 ### Changed
 
 * Updated com.unity.entities dependency to 1.0.14
+
+
+### Security
 
 ## [1.0.11] - 2023-06-19
 

@@ -26,6 +26,15 @@ Entities that use manually registered IDs don't need to have a `RenderMeshArray`
 
 * Updated the name of the package from Hybrid Renderer to Entities Graphics.
 * Updated Scene view entity picking to use [BatchRendererGroup](https://docs.unity3d.com/2022.1/Documentation/Manual/batch-renderer-group.html).
+* Rework sub-mesh handling for MeshRenderer components.
+
+#### Rework sub-mesh handling
+
+In previous versions, Entities Graphics generated one entity per sub-mesh on a MeshRenderer. Those entities were mostly duplicates, wasted a lot of memory, and negatively impacted performance.  
+
+To avoid this behavior, add a scripting define to your project. Go to **Edit &gt; Project Settings &gt; Player &gt; Scripting Define Symbols** and add the define `ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING` to the list.  
+
+The duplicated entities will no longer be created to handle sub-meshes except when using SkinnedMeshRenderer. If your project relies on this behavior, then you might need to manually create one entity per sub-mesh yourself, because Entities Graphics won't do so anymore.
 
 ### Removed
 

@@ -52,7 +52,7 @@ namespace Unity.Rendering
             var root = authoring.rootBone ? GetComponent<Transform>(authoring.rootBone) : GetComponent<Transform>(authoring);
 
             var mesh = authoring.sharedMesh;
-            MeshRendererBakingUtility.Convert(this, authoring, mesh, materials, false, out var additionalEntities, root);
+            MeshRendererBakingUtility.ConvertToMultipleEntities(this, authoring, mesh, materials, root, out var additionalEntities);
 
             var hasSkinning = mesh == null ? false : mesh.boneWeights.Length > 0 && mesh.bindposeCount > 0;
             var hasBlendShapes = mesh == null ? false : mesh.blendShapeCount > 0;

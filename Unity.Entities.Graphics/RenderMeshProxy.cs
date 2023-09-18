@@ -1,27 +1,15 @@
 using System;
 using System.Collections.Generic;
+using Unity.Assertions;
 using Unity.Core;
 using Unity.Entities;
 using UnityEngine;
 
 namespace Unity.Rendering
 {
-    
     /// <summary>
-    /// Defines the mesh and rendering properties of an entity.
+    /// Defines the mesh and rendering properties of an entity during baking.
     /// </summary>
-    /// <remarks>
-    /// Add a RenderMesh component to an entity to define its graphical attributes. For Entities Graphics to render the entity,
-    /// the entity must also have a LocalToWorld component from the Unity.Transforms namespace.
-    ///
-    /// The standard ECS conversion systems add RenderMesh components to entities created from GameObjects that contain
-    /// [UnityEngine.MeshRenderer](https://docs.unity3d.com/ScriptReference/MeshRenderer.html) and
-    /// [UnityEngine.MeshFilter](https://docs.unity3d.com/ScriptReference/MeshFilter.html) components.
-    ///
-    /// RenderMesh is a shared component, which means all entities of the same Archetype and same RenderMesh settings
-    /// are stored together in the same chunks of memory. The rendering system batches the entities together to reduce
-    /// the number of draw calls.
-    /// </remarks>
     [Serializable]
     // Culling system requires a maximum of 128 entities per chunk (See ChunkInstanceLodEnabled)
     [MaximumChunkCapacity(128)]
@@ -32,6 +20,17 @@ namespace Unity.Rendering
         /// A reference to a [UnityEngine.Mesh](https://docs.unity3d.com/ScriptReference/Mesh.html) object.
         /// </summary>
         public Mesh                 mesh;
+
+        /// <summary>
+        /// The material list.
+        /// </summary>
+        public List<Material>       materials;
+
+        /// <summary>
+        /// The submesh index.
+        /// </summary>
+        public int                  subMesh;
+
         /// <summary>
         /// A reference to a [UnityEngine.Material](https://docs.unity3d.com/ScriptReference/Material.html) object.
         /// </summary>
@@ -39,11 +38,24 @@ namespace Unity.Rendering
         /// For entities converted from GameObjects, this value is derived from the Materials array of the source
         /// Mesh Renderer Component.
         /// </remarks>
-        public Material             material;
-        /// <summary>
-        /// The submesh index.
-        /// </summary>
-        public int                  subMesh;
+        public Material             material
+        {
+            get
+            {
+                if (materials == null || subMesh >= materials.Count)
+                    return null;
+
+                return materials[subMesh];
+            }
+
+            set
+            {
+                if (materials == null || subMesh >= materials.Count)
+                    return;
+
+                materials[subMesh] = value;
+            }
+        }
 
         /// <summary>
         /// Constructs a RenderMesh using the given Renderer, Mesh, optional list of shared Materials, and option sub-mesh index.
@@ -58,8 +70,8 @@ namespace Unity.Rendering
             List<Material> sharedMaterials = null,
             int subMeshIndex = 0)
         {
-            Debug.Assert(renderer != null, "Must have a non-null Renderer to create RenderMesh.");
-            Debug.Assert(mesh != null, "Must have a non-null Mesh to create RenderMesh.");
+            Assert.IsTrue(renderer != null, "Must have a non-null Renderer to create RenderMesh.");
+            Assert.IsTrue(mesh != null, "Must have a non-null Mesh to create RenderMesh.");
 
             if (sharedMaterials is null)
                 sharedMaterials = new List<Material>(capacity: 10);
@@ -67,11 +79,11 @@ namespace Unity.Rendering
             if (sharedMaterials.Count == 0)
                 renderer.GetSharedMaterials(sharedMaterials);
 
-            Debug.Assert(subMeshIndex >= 0 && subMeshIndex < sharedMaterials.Count,
+            Assert.IsTrue(subMeshIndex >= 0 && subMeshIndex < sharedMaterials.Count,
                 "Sub-mesh index out of bounds, no matching material.");
 
             this.mesh = mesh;
-            material = sharedMaterials[subMeshIndex];
+            materials = sharedMaterials;
             subMesh = subMeshIndex;
         }
 

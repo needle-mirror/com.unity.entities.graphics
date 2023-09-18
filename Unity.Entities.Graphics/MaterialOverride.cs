@@ -21,7 +21,6 @@ class Helper<T> : IHelper where T : unmanaged, IComponentData
     }
 }
 
-
 /// <summary>
 /// Represents a material override authoring component.
 /// </summary>
@@ -29,7 +28,6 @@ class Helper<T> : IHelper where T : unmanaged, IComponentData
 [ExecuteInEditMode]
 public class MaterialOverride : MonoBehaviour
 {
-
     /// <summary>
     /// The material asset to override.
     /// </summary>

@@ -22,7 +22,7 @@ namespace Unity.Rendering
 
         public ComputeBufferWrapper(int namePropertyId, int size, ComputeShader shader) : this(namePropertyId, size)
         {
-            Debug.Assert(shader != null);
+            Assert.IsTrue(shader != null);
             m_Shader = shader;
         }
 
@@ -40,15 +40,15 @@ namespace Unity.Rendering
 
         public void PushDataToGlobal()
         {
-            Debug.Assert(m_Buffer.count > 0);
-            Debug.Assert(m_Buffer.IsValid());
+            Assert.IsTrue(m_Buffer.count > 0);
+            Assert.IsTrue(m_Buffer.IsValid());
             Shader.SetGlobalBuffer(PropertyID, m_Buffer);
         }
 
         public void PushDataToKernel(int kernelIndex)
         {
-            Debug.Assert(m_Buffer.count > 0 && m_Shader != null);
-            Debug.Assert(m_Buffer.IsValid());
+            Assert.IsTrue(m_Buffer.count > 0 && m_Shader != null);
+            Assert.IsTrue(m_Buffer.IsValid());
             m_Shader.SetBuffer(kernelIndex, PropertyID, m_Buffer);
         }
 

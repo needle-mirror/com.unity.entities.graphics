@@ -775,12 +775,11 @@ namespace Unity.Rendering
             StepFrame();
         }
 
-        
         /// <summary>
         /// Cleans up internal data and recovers buffers into the free buffer pool.
         /// </summary>
         /// <remarks>
-        /// You should call this once per frame.
+        /// It's best practice to call this once at the end of every frame.
         /// </remarks>
         public void FrameCleanup()
         {

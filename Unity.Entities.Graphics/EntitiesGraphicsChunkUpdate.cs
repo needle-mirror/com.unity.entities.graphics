@@ -52,7 +52,7 @@ namespace Unity.Rendering
 
             AtomicHelpers.IndexToQwIndexAndMask(batchIndex, out int qw, out long mask);
 
-            Debug.Assert(qw < UnreferencedBatchIndices.Length, "Batch index out of bounds");
+            Assert.IsTrue(qw < UnreferencedBatchIndices.Length, "Batch index out of bounds");
 
             AtomicHelpers.AtomicAnd(
                 (long*)UnreferencedBatchIndices.GetUnsafePtr(),
@@ -259,7 +259,7 @@ namespace Unity.Rendering
             int* numNewChunks = (int*)NumNewChunks.GetUnsafePtr();
             int iPlus1 = System.Threading.Interlocked.Add(ref numNewChunks[0], 1);
             int i = iPlus1 - 1; // C# Interlocked semantics are weird
-            Debug.Assert(i < NewChunks.Length, "Out of space in the NewChunks buffer");
+            Assert.IsTrue(i < NewChunks.Length, "Out of space in the NewChunks buffer");
             NewChunks[i] = chunk;
         }
     }
@@ -274,7 +274,6 @@ namespace Unity.Rendering
         [ReadOnly] public ComponentTypeHandle<LODRange> LodRange;
         [ReadOnly] public ComponentTypeHandle<RootLODRange> RootLodRange;
         [ReadOnly] public ComponentTypeHandle<MaterialMeshInfo> MaterialMeshInfo;
-        [ReadOnly] public SharedComponentTypeHandle<RenderMeshArray> RenderMeshArray;
         public EntitiesGraphicsChunkUpdater EntitiesGraphicsChunkUpdater;
 
         public void Execute(in ArchetypeChunk metaChunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
@@ -297,11 +296,10 @@ namespace Unity.Rendering
                 // Skip chunks that for some reason have EntitiesGraphicsChunkInfo, but don't have the
                 // other required components. This should normally not happen, but can happen
                 // if the user manually deletes some components after the fact.
-                bool hasRenderMeshArray = chunk.Has(RenderMeshArray);
                 bool hasMaterialMeshInfo = chunk.Has(ref MaterialMeshInfo);
                 bool hasLocalToWorld = chunk.Has(ref LocalToWorld);
 
-                if (!math.all(new bool3(hasRenderMeshArray, hasMaterialMeshInfo, hasLocalToWorld)))
+                if (!math.all(new bool2(hasMaterialMeshInfo, hasLocalToWorld)))
                     continue;
 
                 ChunkWorldRenderBounds chunkBounds = chunkBoundsArray[i];
@@ -341,7 +339,7 @@ namespace Unity.Rendering
 
             ChunkWorldRenderBounds chunkBounds = chunk.GetChunkComponentData(ref ChunkWorldRenderBounds);
 
-            Debug.Assert(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
+            Assert.IsTrue(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
             EntitiesGraphicsChunkUpdater.ProcessValidChunk(chunkInfo, chunk, chunkBounds.Value, true);
         }
     }

@@ -133,7 +133,7 @@ namespace Unity.Rendering.Occlusion
         static void ForEachRenderer(Action<MeshRenderer> action, OccluderEditMode mode)
         {
             var renderers = mode == OccluderEditMode.AllObjects
-                ? Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
+                ? Object.FindObjectsOfType<MeshRenderer>()
                 : Selection.gameObjects.SelectMany(x => x.GetComponents<MeshRenderer>());
             renderers = renderers.Distinct();
 

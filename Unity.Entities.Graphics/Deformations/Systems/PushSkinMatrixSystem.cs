@@ -1,4 +1,5 @@
 using Unity.Assertions;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Deformations;
@@ -36,6 +37,7 @@ namespace Unity.Rendering
             );
         }
 
+        [BurstCompile]
         [WithAll(typeof(SharedMeshTracker))]
         partial struct ConstructHashMapJob : IJobEntity
         {
@@ -51,6 +53,7 @@ namespace Unity.Rendering
             }
         }
 
+        [BurstCompile]
         partial struct CopySkinMatricesToGPUJob : IJobEntity
         {
             [ReadOnly] public NativeParallelMultiHashMap<Entity, int> DeformedEntityToComputeIndex;

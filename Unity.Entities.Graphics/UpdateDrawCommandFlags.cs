@@ -27,7 +27,7 @@ namespace Unity.Rendering
             Assert.IsFalse(useEnabledMask);
 
             var chunkInfo = chunk.GetChunkComponentData(ref EntitiesGraphicsChunkInfo);
-            Debug.Assert(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
+            Assert.IsTrue(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
 
             var localToWorld = chunk.GetNativeArray(ref LocalToWorld);
 

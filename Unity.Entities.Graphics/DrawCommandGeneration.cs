@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.Assertions;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -30,7 +31,7 @@ namespace Unity.Rendering
         public BatchMaterialID MaterialID;
         public BatchMeshID MeshID;
         public ushort SplitMask;
-        public ushort SubmeshIndex;
+        public ushort SubMeshIndex;
         public BatchID BatchID;
         private int m_CachedHash;
 
@@ -47,16 +48,16 @@ namespace Unity.Rendering
         {
             get
             {
-                Debug.Assert(MeshID.value < (1 << 24));
-                Debug.Assert(SubmeshIndex < (1 << 8));
-                Debug.Assert((uint)Flags < (1 << 24));
-                Debug.Assert(SplitMask < (1 << 8));
+                Assert.IsTrue(MeshID.value < (1 << 24));
+                Assert.IsTrue(SubMeshIndex < (1 << 8));
+                Assert.IsTrue((uint)Flags < (1 << 24));
+                Assert.IsTrue(SplitMask < (1 << 8));
 
                 return new uint4(
                     (uint)FilterIndex,
                     (((uint)SplitMask & 0xff) << 24) | ((uint)Flags & 0x00ffffffff),
                     MaterialID.value,
-                    ((MeshID.value & 0x00ffffff) << 8) | ((uint)SubmeshIndex & 0xff)
+                    ((MeshID.value & 0x00ffffff) << 8) | ((uint)SubMeshIndex & 0xff)
                 );
             }
         }
@@ -87,15 +88,15 @@ namespace Unity.Rendering
             int cmpFlags = ((int)Flags).CompareTo((int)other.Flags);
             int cmpMaterialID = MaterialID.CompareTo(other.MaterialID);
             int cmpMeshID = MeshID.CompareTo(other.MeshID);
-            int cmpSplitMask = SplitMask.CompareTo(other.SubmeshIndex);
-            int cmpSubmeshIndex = SubmeshIndex.CompareTo(other.SubmeshIndex);
+            int cmpSplitMask = SplitMask.CompareTo(other.SubMeshIndex);
+            int cmpSubMeshIndex = SubMeshIndex.CompareTo(other.SubMeshIndex);
             int cmpBatchID = BatchID.CompareTo(other.BatchID);
 
             if (cmpFilterIndex != 0) return cmpFilterIndex;
             if (cmpFlags != 0) return cmpFlags;
             if (cmpMaterialID != 0) return cmpMaterialID;
             if (cmpMeshID != 0) return cmpMeshID;
-            if (cmpSubmeshIndex != 0) return cmpSubmeshIndex;
+            if (cmpSubMeshIndex != 0) return cmpSubMeshIndex;
             if (cmpSplitMask != 0) return cmpSplitMask;
 
             return cmpBatchID;
@@ -112,7 +113,7 @@ namespace Unity.Rendering
 
         public override string ToString()
         {
-            return $"DrawCommandSettings(batchID: {BatchID.value}, materialID: {MaterialID.value}, meshID: {MeshID.value}, submesh: {SubmeshIndex}, filter: {FilterIndex}, flags: {Flags:x}, splitMask: {SplitMask:x})";
+            return $"DrawCommandSettings(batchID: {BatchID.value}, materialID: {MaterialID.value}, meshID: {MeshID.value}, submesh: {SubMeshIndex}, filter: {FilterIndex}, flags: {Flags:x}, splitMask: {SplitMask:x})";
         }
     }
 
@@ -142,8 +143,8 @@ namespace Unity.Rendering
         public ThreadLocalAllocator(int expectedUsedCount = -1, int initialSize = kInitialSize)
         {
             // Note, the comparison is <= as on 32-bit builds this size will be smaller, which is fine.
-            Debug.Assert(sizeof(AllocatorHelper<RewindableAllocator>) <= 16, $"PaddedAllocator's Allocator size has changed. The type layout needs adjusting.");
-            Debug.Assert(sizeof(PaddedAllocator) >= JobsUtility.CacheLineSize,
+            Assert.IsTrue(sizeof(AllocatorHelper<RewindableAllocator>) <= 16, $"PaddedAllocator's Allocator size has changed. The type layout needs adjusting.");
+            Assert.IsTrue(sizeof(PaddedAllocator) >= JobsUtility.CacheLineSize,
                 $"Thread local allocators should be on different cache lines. Size: {sizeof(PaddedAllocator)}, Cache Line: {JobsUtility.CacheLineSize}");
 
             if (expectedUsedCount < 0)
@@ -317,8 +318,8 @@ namespace Unity.Rendering
             LinkHead(AllocateArray(allocator));
             m_Begin = Head->Element(0);
             m_Count = 0;
-            Debug.Assert(Head->NumElements == 0);
-            Debug.Assert(Head->NumInstances == 0);
+            Assert.IsTrue(Head->NumElements == 0);
+            Assert.IsTrue(Head->NumInstances == 0);
         }
 
         public void LinkHead(Header* newHead)
@@ -490,7 +491,7 @@ namespace Unity.Rendering
         public ThreadLocalDrawCommands(int capacity, ThreadLocalAllocator tlAllocator)
         {
             // Make sure we don't get false sharing by placing the thread locals on different cache lines.
-            Debug.Assert(sizeof(ThreadLocalDrawCommands) >= JobsUtility.CacheLineSize);
+            Assert.IsTrue(sizeof(ThreadLocalDrawCommands) >= JobsUtility.CacheLineSize);
             DrawCommandStreamIndices = new UnsafeParallelHashMap<DrawCommandSettings, int>(capacity, kAllocator);
             DrawCommands = new UnsafeList<DrawCommandStream>(capacity, kAllocator);
             ThreadLocalAllocator = tlAllocator;
@@ -575,8 +576,8 @@ namespace Unity.Rendering
 
         public void EnsureCapacity(UnsafeList<DrawCommandWorkItem>.ParallelWriter dst, int count)
         {
-            Debug.Assert(sizeof(ThreadLocalCollectBuffer) >= JobsUtility.CacheLineSize);
-            Debug.Assert(count <= kCollectBufferSize);
+            Assert.IsTrue(sizeof(ThreadLocalCollectBuffer) >= JobsUtility.CacheLineSize);
+            Assert.IsTrue(count <= kCollectBufferSize);
 
             if (!WorkItems.IsCreated)
                 WorkItems = new UnsafeList<DrawCommandWorkItem>(
@@ -1120,57 +1121,98 @@ namespace Unity.Rendering
                         // Clear the bit first in case we early out from the loop
                         visibleWord ^= entityMask;
 
-                        var materialMeshInfo = materialMeshInfos[entityIndex];
-
-                        BatchMaterialID materialID = materialMeshInfo.IsRuntimeMaterial
-                            ? materialMeshInfo.MaterialID
-                            : brgRenderMeshArray.GetMaterialID(materialMeshInfo);
-
-                        BatchMeshID meshID = materialMeshInfo.IsRuntimeMesh
-                            ? materialMeshInfo.MeshID
-                            : brgRenderMeshArray.GetMeshID(materialMeshInfo);
-
-                        // Null materials are handled internally by Unity using the error material if available.
-                        // Invalid meshes at this point will be skipped.
-                        if (meshID == BatchMeshID.Null)
-                            continue;
-
+                        MaterialMeshInfo materialMeshInfo = materialMeshInfos[entityIndex];
+                        BatchID batchID = new BatchID { value = (uint)batchIndex };
+                        ushort splitMask = chunkVisibility->SplitMasks[entityIndex];
                         bool flipWinding = (chunkCullingData.FlippedWinding[j] & entityMask) != 0;
 
-                        var settings = new DrawCommandSettings
-                        {
-                            FilterIndex = filterIndex,
-                            BatchID = new BatchID { value = (uint)batchIndex },
-                            MaterialID = materialID,
-                            MeshID = meshID,
-                            SplitMask = chunkVisibility->SplitMasks[entityIndex],
-                            SubmeshIndex = (ushort)materialMeshInfo.Submesh,
-                            Flags = 0
-                        };
+                        BatchDrawCommandFlags drawCommandFlags = 0;
 
                         if (flipWinding)
-                            settings.Flags |= BatchDrawCommandFlags.FlipWinding;
+                            drawCommandFlags |= BatchDrawCommandFlags.FlipWinding;
 
                         if (hasMotion)
-                            settings.Flags |= BatchDrawCommandFlags.HasMotion;
+                            drawCommandFlags |= BatchDrawCommandFlags.HasMotion;
 
                         if (isLightMapped)
-                            settings.Flags |= BatchDrawCommandFlags.IsLightMapped;
+                            drawCommandFlags |= BatchDrawCommandFlags.IsLightMapped;
 
-                        // Depth sorted draws are emitted with access to entity transforms,
-                        // so they can also be written out for sorting
                         if (isDepthSorted)
+                            drawCommandFlags |= BatchDrawCommandFlags.HasSortingPosition;
+
+                        if (materialMeshInfo.HasMaterialMeshIndexRange)
                         {
-                            settings.Flags |= BatchDrawCommandFlags.HasSortingPosition;
-                            DrawCommandOutput.EmitDepthSorted(settings, j, bitIndex, chunkStartIndex,
-                                (float4x4*)localToWorlds.GetUnsafeReadOnlyPtr());
+                            RangeInt matMeshIndexRange = materialMeshInfo.MaterialMeshIndexRange;
+
+                            for (int i = 0; i < matMeshIndexRange.length; i++)
+                            {
+                                int matMeshSubMeshIndex = matMeshIndexRange.start + i;
+
+                                // Drop the draw command if OOB. Errors should have been reported already so no need to log anything
+                                if (matMeshSubMeshIndex >= brgRenderMeshArray.MaterialMeshSubMeshes.Length)
+                                    continue;
+
+                                BatchMaterialMeshSubMesh matMeshSubMesh = brgRenderMeshArray.MaterialMeshSubMeshes[matMeshSubMeshIndex];
+
+                                DrawCommandSettings settings = new DrawCommandSettings
+                                {
+                                    FilterIndex = filterIndex,
+                                    BatchID = batchID,
+                                    MaterialID = matMeshSubMesh.Material,
+                                    MeshID = matMeshSubMesh.Mesh,
+                                    SplitMask = splitMask,
+                                    SubMeshIndex = (ushort)matMeshSubMesh.SubMeshIndex,
+                                    Flags = drawCommandFlags
+                                };
+
+                                EmitDrawCommand(settings, j, bitIndex, chunkStartIndex, localToWorlds);
+                            }
                         }
                         else
                         {
-                            DrawCommandOutput.Emit(settings, j, bitIndex, chunkStartIndex);
+                            BatchMeshID meshID = materialMeshInfo.IsRuntimeMesh
+                                ? materialMeshInfo.MeshID
+                                : brgRenderMeshArray.GetMeshID(materialMeshInfo);
+
+                            // Invalid meshes at this point will be skipped.
+                            if (meshID == BatchMeshID.Null)
+                                continue;
+
+                            // Null materials are handled internally by Unity using the error material if available.
+                            BatchMaterialID materialID = materialMeshInfo.IsRuntimeMaterial
+                                ? materialMeshInfo.MaterialID
+                                : brgRenderMeshArray.GetMaterialID(materialMeshInfo);
+
+                            var settings = new DrawCommandSettings
+                            {
+                                FilterIndex = filterIndex,
+                                BatchID = batchID,
+                                MaterialID = materialID,
+                                MeshID = meshID,
+                                SplitMask = splitMask,
+                                SubMeshIndex = (ushort)materialMeshInfo.SubMesh,
+                                Flags = drawCommandFlags
+                            };
+
+                            EmitDrawCommand(settings, j, bitIndex, chunkStartIndex, localToWorlds);
                         }
                     }
                 }
+            }
+        }
+
+        private void EmitDrawCommand(in DrawCommandSettings settings, int entityQword, int entityBit, int chunkStartIndex, NativeArray<LocalToWorld> localToWorlds)
+        {
+            // Depth sorted draws are emitted with access to entity transforms,
+            // so they can also be written out for sorting
+            if (settings.HasSortingPosition)
+            {
+                DrawCommandOutput.EmitDepthSorted(settings, entityQword, entityBit, chunkStartIndex,
+                    (float4x4*)localToWorlds.GetUnsafeReadOnlyPtr());
+            }
+            else
+            {
+                DrawCommandOutput.Emit(settings, entityQword, entityBit, chunkStartIndex);
             }
         }
 
@@ -1610,7 +1652,7 @@ namespace Unity.Rendering
             {
                 while (header != null)
                 {
-                    Debug.Assert(transformHeader != null);
+                    Assert.IsTrue(transformHeader != null);
 
                     int instanceOffset = binInstanceOffset + workItemInstanceOffset + headerInstanceOffset;
                     int positionOffset = binPositionOffset + workItemInstanceOffset + headerInstanceOffset;
@@ -1641,7 +1683,7 @@ namespace Unity.Rendering
             {
                 var visibility = *header->Element(i);
                 int numInstances = ExpandVisibility(visibleInstances + instanceOffset, visibility);
-                Debug.Assert(numInstances > 0);
+                Assert.IsTrue(numInstances > 0);
                 instanceOffset += numInstances;
             }
 
@@ -1667,7 +1709,7 @@ namespace Unity.Rendering
                     sortingPositions + positionOffset,
                     visibility,
                     transforms);
-                Debug.Assert(numInstances > 0);
+                Assert.IsTrue(numInstances > 0);
                 instanceOffset += numInstances;
                 positionOffset += numInstances;
             }
@@ -1782,7 +1824,7 @@ namespace Unity.Rendering
                     batchID = settings.BatchID,
                     materialID = settings.MaterialID,
                     meshID = settings.MeshID,
-                    submeshIndex = (ushort)settings.SubmeshIndex,
+                    submeshIndex = (ushort)settings.SubMeshIndex,
                     splitVisibilityMask = settings.SplitMask,
                     flags = settings.Flags,
                     sortingPosition = hasSortingPosition
@@ -1889,7 +1931,7 @@ namespace Unity.Rendering
             stats.DrawRangeCount += rangeCount;
 #endif
 
-            Debug.Assert(rangeCount <= output->drawCommandCount);
+            Assert.IsTrue(rangeCount <= output->drawCommandCount);
         }
 
         private void AccumulateDrawRange(
@@ -1971,8 +2013,8 @@ namespace Unity.Rendering
                 int cmp = settings.CompareTo(settingsNext);
                 int cmpRef = settings.CompareToReference(settingsNext);
 
-                Debug.Assert(cmpRef <= 0, $"Draw commands not in order. CompareTo: {cmp}, CompareToReference: {cmpRef}, A: {settings}, B: {settingsNext}");
-                Debug.Assert(cmpRef == cmp, $"CompareTo() does not match CompareToReference(). CompareTo: {cmp}, CompareToReference: {cmpRef}, A: {settings}, B: {settingsNext}");
+                Assert.IsTrue(cmpRef <= 0, $"Draw commands not in order. CompareTo: {cmp}, CompareToReference: {cmpRef}, A: {settings}, B: {settingsNext}");
+                Assert.IsTrue(cmpRef == cmp, $"CompareTo() does not match CompareToReference(). CompareTo: {cmp}, CompareToReference: {cmpRef}, A: {settings}, B: {settingsNext}");
             }
         }
     }

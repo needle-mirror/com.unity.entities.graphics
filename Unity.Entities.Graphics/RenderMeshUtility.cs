@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using Unity.Assertions;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Entities.Graphics;
@@ -40,7 +41,7 @@ namespace Unity.Rendering
         /// <param name="renderer">The renderer object (e.g. a <see cref="MeshRenderer"/>) to get default settings from.</param>
         public RenderMeshDescription(Renderer renderer)
         {
-            Debug.Assert(renderer != null, "Must have a non-null Renderer to create RenderMeshDescription.");
+            Assert.IsTrue(renderer != null, "Must have a non-null Renderer to create RenderMeshDescription.");
 
             FilterSettings = new RenderFilterSettings
             {
@@ -110,6 +111,7 @@ namespace Unity.Rendering
             LightProbesCustom = 1 << 3,
             DepthSorted = 1 << 4,
             Baking = 1 << 5,
+            UseRenderMeshArray = 1 << 6
         }
 
         // Pre-generate ComponentTypes objects for each flag combination, so all the components
@@ -159,7 +161,7 @@ namespace Unity.Rendering
                 if (flags.HasFlag(EntitiesGraphicsComponentFlags.GameObjectConversion) | flags.HasFlag(EntitiesGraphicsComponentFlags.Baking) )
                     components.Add(ComponentType.ReadWrite<RenderMesh>());
 
-                if (!flags.HasFlag(EntitiesGraphicsComponentFlags.GameObjectConversion) | flags.HasFlag(EntitiesGraphicsComponentFlags.Baking) )
+                if (flags.HasFlag(EntitiesGraphicsComponentFlags.UseRenderMeshArray) && (!flags.HasFlag(EntitiesGraphicsComponentFlags.GameObjectConversion) | flags.HasFlag(EntitiesGraphicsComponentFlags.Baking) ))
                     components.Add(ComponentType.ReadWrite<RenderMeshArray>());
 
                 // Baking uses TransformUsageFlags, and as such should not be explicitly adding LocalToWorld to anything
@@ -197,6 +199,29 @@ namespace Unity.Rendering
 #else
         internal const bool kUseHybridMotionPass = false;
 #endif
+
+        internal static ComponentTypeSet ComputeComponentTypes(EntitiesGraphicsComponentFlags flags, RenderMeshDescription renderMeshDescription, bool isStatic, List<Material> materials)
+        {
+            // Entities with Static are never rendered with motion vectors
+            bool inMotionPass = kUseHybridMotionPass &&
+                                renderMeshDescription.FilterSettings.IsInMotionPass &&
+                                !isStatic;
+
+            if (inMotionPass) flags |= EntitiesGraphicsComponentFlags.InMotionPass;
+            flags |= LightProbeFlags(renderMeshDescription.LightProbeUsage);
+
+            if (materials != null)
+            {
+                // Add DepthSorted flag bit for the whole entity if any submesh needs depth sorting.
+                foreach (var material in materials)
+                {
+                    flags |= DepthSortedFlags(material);
+                }
+            }
+
+            return s_EntitiesGraphicsComponentTypes.GetComponentTypes(flags);
+        }
+
         /// <summary>
         /// Set the Entities Graphics component values to render the given entity using the given description.
         /// Any missing components will be added, which results in structural changes.
@@ -213,31 +238,81 @@ namespace Unity.Rendering
             RenderMeshArray renderMeshArray,
             MaterialMeshInfo materialMeshInfo = default)
         {
-            var material = renderMeshArray.GetMaterial(materialMeshInfo);
+            var materials = renderMeshArray.GetMaterials(materialMeshInfo);
             var mesh = renderMeshArray.GetMesh(materialMeshInfo);
 
-            // Entities with Static are never rendered with motion vectors
-            bool inMotionPass = kUseHybridMotionPass &&
-                                renderMeshDescription.FilterSettings.IsInMotionPass &&
-                                !entityManager.HasComponent<Static>(entity);
-
-            EntitiesGraphicsComponentFlags flags = EntitiesGraphicsComponentFlags.None;
-            if (inMotionPass) flags |= EntitiesGraphicsComponentFlags.InMotionPass;
-            flags |= LightProbeFlags(renderMeshDescription.LightProbeUsage);
-            flags |= DepthSortedFlags(material);
+            if (mesh == null)
+            {
+                Debug.LogError(("materialMeshInfo does not point to a valid mesh"));
+                return;
+            }
+            if (materials == null)
+            {
+                Debug.LogError(("materialMeshInfo does not point to a valid material"));
+                return;
+            }
 
             // Add all components up front using as few calls as possible.
-            entityManager.AddComponent(entity, s_EntitiesGraphicsComponentTypes.GetComponentTypes(flags));
+            var componentSet = ComputeComponentTypes(EntitiesGraphicsComponentFlags.UseRenderMeshArray,
+                    renderMeshDescription, entityManager.HasComponent<Static>(entity), materials);
+            entityManager.AddComponent(entity, componentSet);
 
             entityManager.SetSharedComponentManaged(entity, renderMeshDescription.FilterSettings);
             entityManager.SetSharedComponentManaged(entity, renderMeshArray);
             entityManager.SetComponentData(entity, materialMeshInfo);
 
-            if (mesh != null)
+
+            var localBounds = mesh.bounds.ToAABB();
+            entityManager.SetComponentData(entity, new RenderBounds { Value = localBounds });
+        }
+
+        /// <summary>
+        /// Set the Entities Graphics component values to render the given entity using the given description.
+        /// Any missing components will be added, which results in structural changes.
+        /// </summary>
+        /// <param name="entity">The entity to set the component values for.</param>
+        /// <param name="entityManager">The <see cref="EntityManager"/> used to set the component values.</param>
+        /// <param name="renderMeshDescription">The description that determines how the entity is to be rendered.</param>
+        /// <param name="materialMeshInfo">The MaterialMeshInfo containing the mesh and material ids </param>
+        public static void AddComponents(
+            Entity entity,
+            EntityManager entityManager,
+            in RenderMeshDescription renderMeshDescription,
+            MaterialMeshInfo materialMeshInfo)
+        {
+
+            var egs = entityManager.World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
+            if (egs == null)
             {
-                var localBounds = mesh.bounds.ToAABB();
-                entityManager.SetComponentData(entity, new RenderBounds { Value = localBounds });
+                Debug.LogError("Unable to get the Entities Graphics System");
+                return;
             }
+
+            var mesh = egs.GetMesh(materialMeshInfo.MeshID);
+            var material = egs.GetMaterial(materialMeshInfo.MaterialID);
+            if (mesh == null)
+            {
+                Debug.LogError(("materialMeshInfo does not point to a valid mesh"));
+                return;
+            }
+            if (material == null)
+            {
+                Debug.LogError(("materialMeshInfo does not point to a valid material"));
+                return;
+            }
+
+            // Add all components up front using as few calls as possible.
+            var componentSet = ComputeComponentTypes(EntitiesGraphicsComponentFlags.None,
+                renderMeshDescription, entityManager.HasComponent<Static>(entity), new List<Material> { material });
+            entityManager.AddComponent(entity, componentSet);
+
+            entityManager.SetSharedComponentManaged(entity, renderMeshDescription.FilterSettings);
+            entityManager.SetComponentData(entity, materialMeshInfo);
+
+            if (mesh == null)
+                return;
+            var localBounds = mesh.bounds.ToAABB();
+            entityManager.SetComponentData(entity, new RenderBounds { Value = localBounds });
         }
 
 #pragma warning restore CS0162
@@ -249,15 +324,14 @@ namespace Unity.Rendering
                 return EntitiesGraphicsComponentFlags.None;
         }
 
-
-        /// <summary>
-        /// Return true if the given <see cref="Material"/> is known to be transparent. Works
-        /// for materials that use HDRP or URP conventions for transparent materials.
-        /// </summary>
         private const string kSurfaceTypeHDRP = "_SurfaceType";
         private const string kSurfaceTypeURP = "_Surface";
         private static int kSurfaceTypeHDRPNameID = Shader.PropertyToID(kSurfaceTypeHDRP);
         private static int kSurfaceTypeURPNameID = Shader.PropertyToID(kSurfaceTypeURP);
+        /// <summary>
+        /// Return true if the given <see cref="Material"/> is known to be transparent. Works
+        /// for materials that use HDRP or URP conventions for transparent materials.
+        /// </summary>
         private static bool IsMaterialTransparent(Material material)
         {
             if (material == null)

@@ -12,7 +12,7 @@ namespace Unity.Rendering
         /// Constructs a material property attribute.
         /// </summary>
         /// <param name="materialPropertyName">The name of the material property.</param>
-        /// <param name="overrideSizeGPU">An optional size of the property on the GPU.</param>
+        /// <param name="overrideSizeGPU">An optional size of the property on the GPU. This is in bytes.</param>
         public MaterialPropertyAttribute(string materialPropertyName, short overrideSizeGPU = -1)
         {
             Name = materialPropertyName;
@@ -25,7 +25,7 @@ namespace Unity.Rendering
         public string Name { get; }
 
         /// <summary>
-        /// The size of the property on the GPU.
+        /// The size of the property in bytes on the GPU.
         /// </summary>
         public short OverrideSizeGPU { get; }
     }

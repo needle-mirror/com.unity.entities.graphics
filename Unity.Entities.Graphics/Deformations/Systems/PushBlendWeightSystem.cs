@@ -1,4 +1,5 @@
 using Unity.Assertions;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Deformations;
@@ -35,6 +36,7 @@ namespace Unity.Rendering
             );
         }
 
+        [BurstCompile]
         [WithAll(typeof(SharedMeshTracker))]
         partial struct ConstructHashMapJob : IJobEntity
         {
@@ -50,6 +52,7 @@ namespace Unity.Rendering
             }
         }
 
+        [BurstCompile]
         partial struct CopyBlendShapeWeightsToGPUJob : IJobEntity
         {
             [NativeDisableContainerSafetyRestriction] public NativeArray<float> BlendShapeWeightsBuffer;

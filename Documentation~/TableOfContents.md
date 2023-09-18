@@ -13,7 +13,7 @@
     * [Material Overrides Using an Asset](material-overrides-asset.md)
   * [Companion Components](companion-components.md)
   * [The BatchRendererGroup API](batch-renderer-group-api.md)
-  * [Mesh deformations](mesh_deformations.md)
+  * [Mesh Deformations](mesh_deformations.md)
   * [Burst Occlusion Culling](burst-occlusion-culling.md)
     * [Requirements and Compatibility](burst-occlusion-culling-requirements.md)
     * [Overview](burst-occlusion-culling-overview.md)

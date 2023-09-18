@@ -1,5 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
+using Unity.Assertions;
+using Unity.Burst.Intrinsics;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
@@ -144,6 +146,12 @@ namespace Unity.Rendering
             return null;
 #endif
         }
+
+        public static v128 ComputeBitmask(int entityCount)
+        {
+            Assert.IsTrue(entityCount<=128);
+            return EnabledBitUtility.ShiftRight(new v128(ulong.MaxValue), 128 - entityCount);
+        }
     }
 
     // Burst currently does not support atomic AND and OR. Use compare-and-exchange based
@@ -162,15 +170,19 @@ namespace Unity.Rendering
             mask = 1L << (int)shift;
         }
 
-        public static unsafe long AtomicAnd(long* qwords, int index, long value)
+        // This function doesn't actually return the value as using it will make the generated code less optimal
+        public static unsafe void AtomicAnd(long* qwords, int index, long value)
         {
+#if UNITY_BURST_EXPERIMENTAL_ATOMIC_INTRINSICS
+            Burst.Intrinsics.Common.InterlockedAnd(ref qwords[index], value);
+#else
             // TODO: Replace this with atomic AND once it is available
             long currentValue = System.Threading.Interlocked.Read(ref qwords[index]);
             for (;;)
             {
                 // If the AND wouldn't change any bits, no need to issue the atomic
                 if ((currentValue & value) == currentValue)
-                    return currentValue;
+                    return;
 
                 long newValue = currentValue & value;
                 long prevValue =
@@ -178,21 +190,26 @@ namespace Unity.Rendering
 
                 // If the value was equal to the expected value, we know that our atomic went through
                 if (prevValue == currentValue)
-                    return prevValue;
+                    return;
 
                 currentValue = prevValue;
             }
+#endif
         }
 
-        public static unsafe long AtomicOr(long* qwords, int index, long value)
+        // This function doesn't actually return the value as using it will make the generated code less optimal
+        public static unsafe void AtomicOr(long* qwords, int index, long value)
         {
+#if UNITY_BURST_EXPERIMENTAL_ATOMIC_INTRINSICS
+            Unity.Burst.Intrinsics.Common.InterlockedOr(ref qwords[index], value);
+#else
             // TODO: Replace this with atomic OR once it is available
             long currentValue = System.Threading.Interlocked.Read(ref qwords[index]);
             for (;;)
             {
                 // If the OR wouldn't change any bits, no need to issue the atomic
                 if ((currentValue | value) == currentValue)
-                    return currentValue;
+                    return;
 
                 long newValue = currentValue | value;
                 long prevValue =
@@ -200,10 +217,11 @@ namespace Unity.Rendering
 
                 // If the value was equal to the expected value, we know that our atomic went through
                 if (prevValue == currentValue)
-                    return prevValue;
+                    return;
 
                 currentValue = prevValue;
             }
+#endif
         }
 
         public static unsafe float AtomicMin(float* floats, int index, float value)

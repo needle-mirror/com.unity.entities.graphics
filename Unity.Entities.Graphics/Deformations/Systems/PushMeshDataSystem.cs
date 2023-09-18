@@ -5,7 +5,9 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
+using Unity.Mathematics;
 using Unity.Profiling;
+using Unity.Burst.Intrinsics;
 
 using BatchMeshID = UnityEngine.Rendering.BatchMeshID;
 using VertexAttribute = UnityEngine.Rendering.VertexAttribute;
@@ -102,6 +104,7 @@ namespace Unity.Rendering
                     ComponentType.ReadWrite<BlendWeightBufferIndex>(),
                     ComponentType.ReadWrite<SkinMatrixBufferIndex>(),
                 },
+                Options = EntityQueryOptions.IgnoreComponentEnabledState
             });
         }
 
@@ -598,9 +601,8 @@ namespace Unity.Rendering
             [ReadOnly] public int DeformedMeshBufferIndex;
 #endif
 
-            public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in Unity.Burst.Intrinsics.v128 chunkEnabledMask)
+            public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 enabledMask)
             {
-                // This job was converted from IJobChunk; it is not written to support enabled bits.
                 Assert.IsFalse(useEnabledMask);
 
                 var meshIndices = chunk.GetNativeArray(ref DeformedMeshIndexHandle);
@@ -624,8 +626,8 @@ namespace Unity.Rendering
                     var materialMeshInfo = meshInfos[i];
 
                     var meshID = materialMeshInfo.IsRuntimeMesh
-                            ? materialMeshInfo.MeshID
-                            : brgRenderMeshArray.GetMeshID(materialMeshInfo);
+                        ? materialMeshInfo.MeshID
+                        : brgRenderMeshArray.GetMeshID(materialMeshInfo);
 
                     if (meshID == BatchMeshID.Null)
                         continue;
@@ -636,12 +638,16 @@ namespace Unity.Rendering
 
                     unsafe
                     {
-                        var instanceIndex = Interlocked.Decrement(ref UnsafeUtility.ArrayElementAsRef<int>(MeshCounts.GetUnsafePtr(), meshIndex));
+                        var instanceIndex =
+                            Interlocked.Decrement(
+                                ref UnsafeUtility.ArrayElementAsRef<int>(MeshCounts.GetUnsafePtr(), meshIndex));
 
-                        uint deformedMeshIndex = (uint)(batchRange.MeshVertexIndex + instanceIndex * meshData.VertexCount);
+                        uint deformedMeshIndex =
+                            (uint)(batchRange.MeshVertexIndex + instanceIndex * meshData.VertexCount);
 
 #if ENABLE_DOTS_DEFORMATION_MOTION_VECTORS
-                        ref var component = ref UnsafeUtility.ArrayElementAsRef<DeformedMeshIndex>(meshIndices.GetUnsafePtr(), i);
+                        ref var component =
+ ref UnsafeUtility.ArrayElementAsRef<DeformedMeshIndex>(meshIndices.GetUnsafePtr(), i);
                         // Set index into deformed mesh buffer for the current frame
                         component.Value[DeformedMeshBufferIndex] = deformedMeshIndex;
                         // Set current frame buffer index (0 or 1)
@@ -653,13 +659,15 @@ namespace Unity.Rendering
                         if (meshData.HasBlendShapes)
                         {
                             Assert.IsTrue(blendWeightIndices.IsCreated);
-                            blendWeightIndices[i] = new BlendWeightBufferIndex { Value = batchRange.BlendShapeIndex + instanceIndex * meshData.BlendShapeCount };
+                            blendWeightIndices[i] = new BlendWeightBufferIndex
+                                { Value = batchRange.BlendShapeIndex + instanceIndex * meshData.BlendShapeCount };
                         }
 
                         if (meshData.HasSkinning)
                         {
                             Assert.IsTrue(skinMatrixIndices.IsCreated);
-                            skinMatrixIndices[i] = new SkinMatrixBufferIndex { Value = batchRange.SkinMatrixIndex + instanceIndex * meshData.BoneCount };
+                            skinMatrixIndices[i] = new SkinMatrixBufferIndex
+                                { Value = batchRange.SkinMatrixIndex + instanceIndex * meshData.BoneCount };
                         }
                     }
                 }

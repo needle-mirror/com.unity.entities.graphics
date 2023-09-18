@@ -10,7 +10,7 @@ using Unity.Transforms;
 namespace Unity.Rendering
 {
     /// <summary>
-    /// A system that generates a scene bounding volume for each section at conversion time.
+    /// A system that generates a scene bounding volume for each entity scene section at conversion time.
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.EntitySceneOptimizations)]
     [UpdateAfter(typeof(RenderBoundsUpdateSystem))]

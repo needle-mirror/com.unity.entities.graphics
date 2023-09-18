@@ -1,5 +1,9 @@
+
+//#define ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
+
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Assertions;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Transforms;
@@ -30,23 +34,30 @@ namespace Unity.Rendering
             var meshFilter = GetComponent<MeshFilter>();
             var mesh = (meshFilter != null) ? GetComponent<MeshFilter>().sharedMesh : null;
 
-            // Takes a dependency on the materials
             var sharedMaterials = new List<Material>();
             authoring.GetSharedMaterials(sharedMaterials);
 
-            MeshRendererBakingUtility.Convert(this, authoring, mesh, sharedMaterials, true, out var additionalEntities);
+            List<Entity> additionalEntities = null;
+
+#if ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
+            MeshRendererBakingUtility.ConvertOnPrimaryEntity(this, authoring, mesh, sharedMaterials);
+#else
+            MeshRendererBakingUtility.ConvertOnPrimaryEntityForSingleMaterial(this, authoring, mesh, sharedMaterials, null, out additionalEntities);
+#endif
 
             DependsOnLightBaking();
 
-            if (additionalEntities.Count == 0)
+            if (additionalEntities == null || additionalEntities.Count == 0)
             {
                 var mainEntity = GetEntity(TransformUsageFlags.Renderable);
-                AddComponent(mainEntity, new MeshRendererBakingData {MeshRenderer = authoring});
+                AddComponent(mainEntity, new MeshRendererBakingData { MeshRenderer = authoring });
             }
-
-            foreach (var entity in additionalEntities)
+            else
             {
-                AddComponent(entity, new MeshRendererBakingData{MeshRenderer = authoring});
+                foreach (var entity in additionalEntities)
+                {
+                    AddComponent(entity, new MeshRendererBakingData { MeshRenderer = authoring });
+                }
             }
         }
     }
@@ -121,20 +132,29 @@ namespace Unity.Rendering
                          .WithEntityAccess()
                          .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities))
             {
+                if (renderMesh.materials == null)
+                    continue;
+
                 Renderer renderer = authoring.ValueRO.MeshRenderer;
 
-                var sharedComponentRenderMesh = renderMesh;
-                var lightmappedMaterial = context.ConfigureHybridLightMapping(
-                    entity,
-                    ecb,
-                    renderer,
-                    sharedComponentRenderMesh.material);
+                List<Material> newMaterials = new List<Material>(renderMesh.materials);
 
-                if (lightmappedMaterial != null)
+                for (int i = 0; i < newMaterials.Count; ++i)
                 {
-                    sharedComponentRenderMesh.material = lightmappedMaterial;
-                    ecb.SetSharedComponentManaged(entity, sharedComponentRenderMesh);
+                    var lightmappedMaterial = context.ConfigureHybridLightMapping(
+                        entity,
+                        ecb,
+                        renderer,
+                        newMaterials[i]);
+
+                    if (lightmappedMaterial != null)
+                        newMaterials[i] = lightmappedMaterial;
                 }
+
+                RenderMesh newRenderMesh = renderMesh;
+                newRenderMesh.materials = newMaterials;
+
+                ecb.SetSharedComponentManaged(entity, newRenderMesh);
             }
 
             context.EndConversion();
@@ -154,6 +174,28 @@ namespace Unity.Rendering
     [UpdateAfter(typeof(MeshRendererBaking))]
     partial class RenderMeshPostProcessSystem : SystemBase
     {
+
+#if ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
+        const bool EnableSubMeshDataSharing = true;
+#else
+        const bool EnableSubMeshDataSharing = false;
+#endif
+
+        struct RenderMeshConversionInfo
+        {
+            // Set if UseIndexRange is true
+            public int MaterialMeshIndexRangeStart;
+            public int MaterialMeshIndexRangeLength;
+
+            // Set if UseIndexRange is false
+            public int MaterialIndex;
+            public int MeshIndex;
+
+            public int RenderMeshSubMeshIndex; // Needed for skinning even when UseIndexRange is true
+            public string ErrorMessage;
+            public bool UseIndexRange;
+        }
+
         EntityQuery m_BakedEntities;
         EntityQuery m_RenderMeshEntities;
 
@@ -166,7 +208,7 @@ namespace Unity.Rendering
                 .Build(this);
             m_RenderMeshEntities = new EntityQueryBuilder(Allocator.Temp)
                 .WithAll<RenderMesh, MaterialMeshInfo>()
-                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
+                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IgnoreComponentEnabledState)
                 .Build(this);
 
             RequireForUpdate(m_BakedEntities);
@@ -175,84 +217,239 @@ namespace Unity.Rendering
         /// <inheritdoc/>
         protected override void OnUpdate()
         {
-            int countUpperBound = EntityManager.GetSharedComponentCount();
+            RenderMesh[] renderMeshes;
+            int[] renderMeshIndices;
+            GetAllRenderMeshes(EntityManager, out renderMeshes, out renderMeshIndices);
 
-            var renderMeshes = new List<RenderMesh>(countUpperBound);
-            var meshes = new Dictionary<Mesh, bool>(countUpperBound);
-            var materials = new Dictionary<Material, bool>(countUpperBound);
+            Material[] uniqueMaterials;
+            Mesh[] uniqueMeshes;
+            ExtractUniqueMaterialAndMeshes(renderMeshes, out uniqueMaterials, out uniqueMeshes);
 
-            EntityManager.GetAllUniqueSharedComponentsManaged(renderMeshes);
-            renderMeshes.RemoveAt(0); // Remove null component automatically added by GetAllUniqueSharedComponentData
-
-            foreach (var renderMesh in renderMeshes)
-            {
-                if (renderMesh.mesh != null)
-                    meshes[renderMesh.mesh] = true;
-
-                if (renderMesh.material != null)
-                    materials[renderMesh.material] = true;
-            }
-
-            if (meshes.Count == 0 && materials.Count == 0)
+            if (uniqueMeshes.Length == 0 && uniqueMaterials.Length == 0)
                 return;
 
-            var renderMeshArray = new RenderMeshArray(materials.Keys.ToArray(), meshes.Keys.ToArray());
-            var meshToIndex = renderMeshArray.GetMeshToIndexMapping();
-            var materialToIndex = renderMeshArray.GetMaterialToIndexMapping();
+            Dictionary<Material, int> materialToArrayIndex = BuildMaterialToIndexRemapTable(uniqueMaterials);
+            Dictionary<Mesh, int> meshToArrayIndex = BuildMeshToIndexRemapTable(uniqueMeshes);
 
+            var matMeshIndices = new List<MaterialMeshIndex>(renderMeshes.Length);
+            var renderMeshConversionInfoMap = new Dictionary<int, RenderMeshConversionInfo>(renderMeshes.Length);
+
+            for (int i = 0; i < renderMeshes.Length; i++)
+            {
+                RenderMesh renderMesh = renderMeshes[i];
+
+                int meshIndex = -1;
+                if (renderMesh.mesh != null && meshToArrayIndex.ContainsKey(renderMesh.mesh))
+                    meshIndex = meshToArrayIndex[renderMesh.mesh];
+
+                int submeshCount = renderMesh.materials.Count;
+                Assert.IsTrue(renderMesh.subMesh < submeshCount);
+
+                // Use MaterialMeshIndex array if there are multiple sub-meshes.
+                // Otherwise use the simple index version to keep the MaterialMeshIndex array smaller.
+                if (EnableSubMeshDataSharing && submeshCount > 1)
+                {
+                    int matMeshIndexRangeStart = matMeshIndices.Count;
+
+                    string errorMessage = "";
+                    for (int subMeshIndex = 0; subMeshIndex < submeshCount; subMeshIndex++)
+                    {
+                        Material material = renderMesh.materials[subMeshIndex];
+
+                        if (material == null)
+                            errorMessage += $"Material ({subMeshIndex}) is null. ";
+
+                        int materialIndex = -1;
+                        if (material != null && materialToArrayIndex.ContainsKey(material))
+                            materialIndex = materialToArrayIndex[material];
+
+                        MaterialMeshIndex matMeshIndex = default;
+                        matMeshIndex.MaterialIndex = materialIndex;
+                        matMeshIndex.MeshIndex = meshIndex;
+                        matMeshIndex.SubMeshIndex = subMeshIndex;
+
+                        matMeshIndices.Add(matMeshIndex);
+                    }
+
+                    renderMeshConversionInfoMap.Add(renderMeshIndices[i], new RenderMeshConversionInfo
+                    {
+                        UseIndexRange = true,
+                        MaterialMeshIndexRangeStart = matMeshIndexRangeStart,
+                        MaterialMeshIndexRangeLength = submeshCount,
+                        RenderMeshSubMeshIndex = renderMesh.subMesh, // Used for skinning even when using a MaterialMeshIndex range
+                        ErrorMessage = errorMessage,
+                    });
+                }
+                else
+                {
+                    Material material = renderMesh.material;
+
+                    string errorMessage = "";
+                    if (material == null)
+                        errorMessage += $"Material ({renderMesh.subMesh}) is null. ";
+
+                    int materialIndex = -1;
+                    if (material != null && materialToArrayIndex.ContainsKey(material))
+                        materialIndex = materialToArrayIndex[material];
+
+                    renderMeshConversionInfoMap.Add(renderMeshIndices[i], new RenderMeshConversionInfo
+                    {
+                        UseIndexRange = false,
+                        MeshIndex = meshIndex,
+                        MaterialIndex = materialIndex,
+                        RenderMeshSubMeshIndex = renderMesh.subMesh,
+                        ErrorMessage = errorMessage,
+                    });
+                }
+            }
+
+            var renderMeshArray = new RenderMeshArray(uniqueMaterials, uniqueMeshes, matMeshIndices.ToArray());
             EntityManager.AddSharedComponentManaged(m_RenderMeshEntities, renderMeshArray);
-
             var entities = m_RenderMeshEntities.ToEntityArray(Allocator.Temp);
 
             for (int i = 0; i < entities.Length; ++i)
             {
-                var e = entities[i];
+                var entity = entities[i];
+                int renderMeshComponentIndex = EntityManager.GetSharedComponentIndexManaged<RenderMesh>(entity);
 
-                var renderMesh = EntityManager.GetSharedComponentManaged<RenderMesh>(e);
+                RenderMeshConversionInfo conversionInfo = renderMeshConversionInfoMap[renderMeshComponentIndex];
 
-                var mesh = renderMesh.mesh;
-                var material = renderMesh.material;
-                sbyte submesh = (sbyte) renderMesh.subMesh;
+                if (!string.IsNullOrEmpty(conversionInfo.ErrorMessage))
+                    LogRenderMeshConversionWarningOnEntity(EntityManager, entity, conversionInfo.ErrorMessage);
+
+                bool isSkinnedEntity = EntityManager.HasComponent<SkinnedMeshRendererBakingData>(entity);
 
                 MaterialMeshInfo materialMeshInfo = default;
 
-                // If the Mesh or Material is null or can't be found, use a zero ID which means null.
-                // This will result in proper error rendering.
-                if (material is null || !materialToIndex.TryGetValue(material, out var materialIndex))
-                    materialMeshInfo.MaterialID = BatchMaterialID.Null;
-                else
-                    materialMeshInfo.MaterialArrayIndex = materialIndex;
-
-                if (mesh is null || !meshToIndex.TryGetValue(renderMesh.mesh, out var meshIndex))
-                    materialMeshInfo.MeshID = BatchMeshID.Null;
-                else
-                    materialMeshInfo.MeshArrayIndex = meshIndex;
-
-                materialMeshInfo.Submesh = submesh;
-
-                // Explicitly check the raw integer vs the zero value, because using the
-                // "MaterialID" property will assert if the value is an array index.
-                if (materialMeshInfo.Material == 0 || materialMeshInfo.Mesh == 0)
+                if (!conversionInfo.UseIndexRange || isSkinnedEntity)
                 {
-                    Renderer authoring = null;
-                    if (EntityManager.HasComponent<MeshRendererBakingData>(e))
-                        authoring = EntityManager.GetComponentData<MeshRendererBakingData>(e).MeshRenderer.Value;
-                    else if (EntityManager.HasComponent<SkinnedMeshRendererBakingData>(e))
-                        authoring = EntityManager.GetComponentData<SkinnedMeshRendererBakingData>(e).SkinnedMeshRenderer.Value;
+                    MaterialMeshIndex matMeshIndex = default;
 
-                    string entityDebugString = authoring is null
-                        ? e.ToString()
-                        : authoring.ToString();
+                    if (conversionInfo.UseIndexRange)
+                    {
+                        Assert.IsTrue(conversionInfo.RenderMeshSubMeshIndex < conversionInfo.MaterialMeshIndexRangeLength);
+                        matMeshIndex = matMeshIndices[conversionInfo.MaterialMeshIndexRangeStart + conversionInfo.RenderMeshSubMeshIndex];
+                    }
+                    else
+                    {
+                        matMeshIndex.MaterialIndex = conversionInfo.MaterialIndex;
+                        matMeshIndex.MeshIndex = conversionInfo.MeshIndex;
+                        matMeshIndex.SubMeshIndex = conversionInfo.RenderMeshSubMeshIndex;
+                    }
 
-                    // Use authoring as a context object in the warning message, so clicking the warning selects
-                    // the corresponding authoring GameObject.
-                    Debug.LogWarning(
-                        $"Entity \"{entityDebugString}\" has an invalid Mesh or Material, and will not render correctly at runtime. Mesh: {mesh}, Material: {material}, Submesh: {submesh}",
-                        authoring);
+                    if (matMeshIndex.MaterialIndex != -1)
+                        materialMeshInfo.MaterialArrayIndex = matMeshIndex.MaterialIndex;
+
+                    if (matMeshIndex.MeshIndex != -1)
+                        materialMeshInfo.MeshArrayIndex = matMeshIndex.MeshIndex;
+
+                    materialMeshInfo.SubMesh = (sbyte)matMeshIndex.SubMeshIndex;
+                }
+                else
+                {
+                    materialMeshInfo = MaterialMeshInfo.FromMaterialMeshIndexRange(
+                        conversionInfo.MaterialMeshIndexRangeStart,
+                        conversionInfo.MaterialMeshIndexRangeLength);
                 }
 
-                EntityManager.SetComponentData(e, materialMeshInfo);
+                EntityManager.SetComponentData(entity, materialMeshInfo);
             }
+        }
+
+        static void GetAllRenderMeshes(EntityManager entityManager, out RenderMesh[] renderMeshes, out int[] renderMeshIndices)
+        {
+            int countUpperBound = entityManager.GetSharedComponentCount();
+
+            var renderMeshesList = new List<RenderMesh>(countUpperBound);
+            var renderMeshIndicesList = new List<int>(countUpperBound);
+            entityManager.GetAllUniqueSharedComponentsManaged(renderMeshesList, renderMeshIndicesList);
+
+            // Remove null component automatically added by GetAllUniqueSharedComponentData
+            renderMeshesList.RemoveAt(0);
+            renderMeshIndicesList.RemoveAt(0);
+
+            renderMeshes = renderMeshesList.ToArray();
+            renderMeshIndices = renderMeshIndicesList.ToArray();
+        }
+
+        static void ExtractUniqueMaterialAndMeshes(RenderMesh[] renderMeshes, out Material[] uniqueMaterials, out Mesh[] uniqueMeshes)
+        {
+            var meshes = new Dictionary<Mesh, bool>(renderMeshes.Length);
+            var materials = new Dictionary<Material, bool>(renderMeshes.Length);
+
+            for (int i = 0; i < renderMeshes.Length; i++)
+            {
+                RenderMesh renderMesh = renderMeshes[i];
+
+                // Those case should have been already handled by MeshRendererBaker
+                Assert.IsTrue(renderMesh.mesh != null);
+                Assert.IsTrue(renderMesh.materials != null && renderMesh.materials.Count > 0);
+
+                if (renderMesh.materials != null)
+                {
+                    for (int submeshIndex = 0; submeshIndex < renderMesh.materials.Count; submeshIndex++)
+                    {
+                        Material material = renderMesh.materials[submeshIndex];
+                        if (material != null)
+                            materials[material] = true;
+                    }
+                }
+
+                if (renderMesh.mesh != null)
+                    meshes[renderMesh.mesh] = true;
+            }
+
+            uniqueMeshes = meshes.Keys.ToArray();
+            uniqueMaterials = materials.Keys.ToArray();
+        }
+
+        static Dictionary<Mesh, int> BuildMeshToIndexRemapTable(Mesh[] meshes)
+        {
+            var remapTable = new Dictionary<Mesh, int>(meshes.Length);
+
+            for (int i = 0; i < meshes.Length; ++i)
+            {
+                Mesh mesh = meshes[i];
+                Assert.IsTrue(mesh != null);
+
+                remapTable.Add(mesh, i);
+            }
+
+            return remapTable;
+        }
+
+        static Dictionary<Material, int> BuildMaterialToIndexRemapTable(Material[] materials)
+        {
+            var remapTable = new Dictionary<Material, int>(materials.Length);
+
+            for (int i = 0; i < materials.Length; ++i)
+            {
+                Material material = materials[i];
+                Assert.IsTrue(material != null);
+
+                remapTable.Add(material, i);
+            }
+
+            return remapTable;
+        }
+
+        static void LogRenderMeshConversionWarningOnEntity(EntityManager entityManager, Entity entity, string errorMessage)
+        {
+            Renderer authoring = null;
+            if (entityManager.HasComponent<MeshRendererBakingData>(entity))
+                authoring = entityManager.GetComponentData<MeshRendererBakingData>(entity).MeshRenderer.Value;
+            else if (entityManager.HasComponent<SkinnedMeshRendererBakingData>(entity))
+                authoring = entityManager.GetComponentData<SkinnedMeshRendererBakingData>(entity).SkinnedMeshRenderer.Value;
+
+            string entityDebugString = authoring is null
+                ? entity.ToString()
+                : authoring.ToString();
+
+            // Use authoring as a context object in the warning message, so clicking the warning selects
+            // the corresponding authoring GameObject.
+            Debug.LogWarning(
+                $"Entity \"{entityDebugString}\" has invalid Meshes or Materials, and will not render correctly at runtime. {errorMessage}",
+                authoring);
         }
     }
 }
