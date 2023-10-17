@@ -25,11 +25,11 @@ For more information, see [System requirements for Unity](xref:system-requiremen
 | **Platform**                           | **HDRP**          | **URP**                          |
 | -------------------------------------- |------------------ | -------------------------------- |
 | **Desktop**                            | Supported         | Supported                        |
-| **Android**                            | Not supported     | Only Graphics API Vulkan and OpenGL ES 3.1 or above is supported |
+| **Android&trade;**                            | Not supported     | Only Graphics API Vulkan and OpenGL ES 3.1 or above is supported |
 | **iOS**                                | Not supported     | Only Metal Graphics is supported |
-| **Nintendo Switch**                    | Not supported     | Supported                        |
-| **PlayStation 4**<br>**PlayStation 5** | Supported         | Supported                        |
-| **Xbox One**<br>**Xbox Series**        | Supported         | Supported                        |
+| **Nintendo Switch&trade;**                    | Not supported     | Supported                        |
+| **PlayStation&reg; 4**<br>**PlayStation&reg; 5** | Supported         | Supported                        |
+| **Xbox&reg; One**<br>**Xbox&reg; Series**        | Supported         | Supported                        |
 | **XR platform**                        | Supported         | Supported                        |
 | **Web platforms**                      | Not supported     | Not supported                    |
 

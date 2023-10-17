@@ -1,4 +1,14 @@
+---
+uid: changelog
+---
+
 # Changelog
+
+## [1.1.0-pre.3] - 2023-10-17
+
+### Changed
+* Updated version for release preparation
+
 
 ## [1.1.0-exp.1] - 2023-09-18
 
