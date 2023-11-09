@@ -52,6 +52,10 @@ namespace Unity.Rendering
                     ComponentType.ReadOnly<LocalToWorld>(),
                     ComponentType.ReadWrite<BuiltinMaterialPropertyUnity_MatrixPreviousM>(),
                 },
+                None = new []
+                {
+                    ComponentType.ReadOnly<SkipBuiltinMaterialPropertyUnity_MatrixPreviousMUpdate>()
+                },
                 Options = EntityQueryOptions.FilterWriteGroup
             });
             m_GroupPrev.SetChangedVersionFilter(new[]

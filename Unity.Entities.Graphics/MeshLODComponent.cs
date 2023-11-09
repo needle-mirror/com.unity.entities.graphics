@@ -43,12 +43,17 @@ namespace Unity.Rendering
     /// <summary>
     /// An unmanaged component that represents a world reference point to use for LOD group.
     /// </summary>
-    struct LODGroupWorldReferencePoint : IComponentData
+    internal struct LODGroupWorldReferencePoint : IComponentData
     {
         /// <summary>
         /// The world-space x, y, and z position of the reference point.
         /// </summary>
         public float3 Value;
+    }
+
+    internal struct SkipLODGroupWorldReferencePointUpdate : IComponentData
+    {
+
     }
 
     /// <summary>

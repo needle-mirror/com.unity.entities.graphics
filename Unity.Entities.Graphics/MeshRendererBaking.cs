@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Assertions;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Transforms;
@@ -65,53 +66,31 @@ namespace Unity.Rendering
     [RequireMatchingQueriesForUpdate]
     [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
     [UpdateBefore(typeof(MeshRendererBaking))]
-    partial class AdditionalMeshRendererFilterBakingSystem : SystemBase
+    partial struct AdditionalMeshRendererFilterBakingSystem : ISystem
     {
-        private EntityQuery m_AdditionalEntities;
-        private ComponentTypeSet typesToFilterSet;
-
-        protected override void OnCreate()
+        [BurstCompile]
+        public void OnUpdate(ref SystemState state)
         {
-            ComponentType[] typesToFilter = new[]
-            {
-                ComponentType.ReadOnly<PostTransformMatrix>(),
-            };
-            typesToFilterSet = new ComponentTypeSet(typesToFilter);
-
-            m_AdditionalEntities = GetEntityQuery(new EntityQueryDesc
-            {
-                All = new []
-                {
-                    ComponentType.ReadOnly<AdditionalMeshRendererEntity>()
-                },
-                Any = typesToFilter,
-                Options = EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities,
-            });
-        }
-
-        protected override void OnUpdate()
-        {
-            EntityManager.RemoveComponent(m_AdditionalEntities, typesToFilterSet);
+            state.EntityManager.RemoveComponent<PostTransformMatrix>(
+                SystemAPI.QueryBuilder()
+                    .WithAll<AdditionalMeshRendererEntity, PostTransformMatrix>()
+                    .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
+                    .Build()
+            );
         }
     }
 
     [RequireMatchingQueriesForUpdate]
     [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
-    partial class MeshRendererBaking : SystemBase
+    partial struct MeshRendererBaking : ISystem
     {
         // Hold a persistent light map conversion context so previously encountered light maps
         // can be reused across multiple conversion batches, which is especially important
         // for incremental conversion (LiveConversion).
-        private LightMapBakingContext m_LightMapBakingContext;
+        static LightMapBakingContext m_LightMapBakingContext = new ();
 
         /// <inheritdoc/>
-        protected override void OnCreate()
-        {
-            m_LightMapBakingContext = new LightMapBakingContext();
-        }
-
-        /// <inheritdoc/>
-        protected override void OnUpdate()
+        public void OnUpdate(ref SystemState state)
         {
             // TODO: When to call m_LightMapConversionContext.Reset() ? When lightmaps are baked?
             var context = new RenderMeshBakingContext(m_LightMapBakingContext);
@@ -159,7 +138,7 @@ namespace Unity.Rendering
 
             context.EndConversion();
 
-            ecb.Playback(EntityManager);
+            ecb.Playback(state.EntityManager);
             ecb.Dispose();
         }
     }
@@ -172,7 +151,7 @@ namespace Unity.Rendering
     [RequireMatchingQueriesForUpdate]
     [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
     [UpdateAfter(typeof(MeshRendererBaking))]
-    partial class RenderMeshPostProcessSystem : SystemBase
+    partial struct RenderMeshPostProcessSystem : ISystem
     {
 
 #if ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
@@ -200,26 +179,27 @@ namespace Unity.Rendering
         EntityQuery m_RenderMeshEntities;
 
         /// <inheritdoc/>
-        protected override void OnCreate()
+        [BurstCompile]
+        public void OnCreate(ref SystemState state)
         {
             m_BakedEntities = new EntityQueryBuilder(Allocator.Temp)
                 .WithAny<MeshRendererBakingData, SkinnedMeshRendererBakingData>()
                 .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
-                .Build(this);
+                .Build(ref state);
             m_RenderMeshEntities = new EntityQueryBuilder(Allocator.Temp)
                 .WithAll<RenderMesh, MaterialMeshInfo>()
                 .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IgnoreComponentEnabledState)
-                .Build(this);
+                .Build(ref state);
 
-            RequireForUpdate(m_BakedEntities);
+            state.RequireForUpdate(m_BakedEntities);
         }
 
         /// <inheritdoc/>
-        protected override void OnUpdate()
+        public void OnUpdate(ref SystemState state)
         {
             RenderMesh[] renderMeshes;
             int[] renderMeshIndices;
-            GetAllRenderMeshes(EntityManager, out renderMeshes, out renderMeshIndices);
+            GetAllRenderMeshes(state.EntityManager, out renderMeshes, out renderMeshIndices);
 
             Material[] uniqueMaterials;
             Mesh[] uniqueMeshes;
@@ -304,20 +284,20 @@ namespace Unity.Rendering
             }
 
             var renderMeshArray = new RenderMeshArray(uniqueMaterials, uniqueMeshes, matMeshIndices.ToArray());
-            EntityManager.AddSharedComponentManaged(m_RenderMeshEntities, renderMeshArray);
+            state.EntityManager.AddSharedComponentManaged(m_RenderMeshEntities, renderMeshArray);
             var entities = m_RenderMeshEntities.ToEntityArray(Allocator.Temp);
 
             for (int i = 0; i < entities.Length; ++i)
             {
                 var entity = entities[i];
-                int renderMeshComponentIndex = EntityManager.GetSharedComponentIndexManaged<RenderMesh>(entity);
+                int renderMeshComponentIndex = state.EntityManager.GetSharedComponentIndexManaged<RenderMesh>(entity);
 
                 RenderMeshConversionInfo conversionInfo = renderMeshConversionInfoMap[renderMeshComponentIndex];
 
                 if (!string.IsNullOrEmpty(conversionInfo.ErrorMessage))
-                    LogRenderMeshConversionWarningOnEntity(EntityManager, entity, conversionInfo.ErrorMessage);
+                    LogRenderMeshConversionWarningOnEntity(state.EntityManager, entity, conversionInfo.ErrorMessage);
 
-                bool isSkinnedEntity = EntityManager.HasComponent<SkinnedMeshRendererBakingData>(entity);
+                bool isSkinnedEntity = state.EntityManager.HasComponent<SkinnedMeshRendererBakingData>(entity);
 
                 MaterialMeshInfo materialMeshInfo = default;
 
@@ -352,7 +332,7 @@ namespace Unity.Rendering
                         conversionInfo.MaterialMeshIndexRangeLength);
                 }
 
-                EntityManager.SetComponentData(entity, materialMeshInfo);
+                state.EntityManager.SetComponentData(entity, materialMeshInfo);
             }
         }
 

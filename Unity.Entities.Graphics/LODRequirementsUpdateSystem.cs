@@ -15,22 +15,30 @@ namespace Unity.Rendering
     /// </summary>
     public struct PerInstanceCullingTag : IComponentData {}
 
-    struct RootLODWorldReferencePoint : IComponentData
+    internal struct RootLODWorldReferencePoint : IComponentData
     {
         public float3 Value;
     }
 
-    struct RootLODRange : IComponentData
+    internal struct SkipRootLODWorldReferencePointUpdate : IComponentData
+    {
+    }
+
+    internal struct RootLODRange : IComponentData
     {
         public LODRange LOD;
     }
 
-    struct LODWorldReferencePoint : IComponentData
+    internal struct LODWorldReferencePoint : IComponentData
     {
         public float3 Value;
     }
 
-    struct LODRange : IComponentData
+    internal struct SkipLODWorldReferencePointUpdate : IComponentData
+    {
+    }
+
+    internal struct LODRange : IComponentData
     {
         public float MinDist;
         public float MaxDist;
@@ -40,6 +48,7 @@ namespace Unity.Rendering
         {
             float minDist = float.MaxValue;
             float maxDist = 0.0F;
+
             if ((lodMask & 0x01) == 0x01)
             {
                 minDist = 0.0f;
@@ -85,6 +94,10 @@ namespace Unity.Rendering
             MaxDist = maxDist;
             LODMask = lodMask;
         }
+    }
+
+    internal struct SkipLODRangeUpdate : IComponentData
+    {
     }
 
     [UpdateInGroup(typeof(StructuralChangePresentationSystemGroup))]
@@ -167,12 +180,11 @@ namespace Unity.Rendering
         ComponentTypeHandle<LODRange> LODRange;
 
         [BurstCompile]
-        struct UpdateLODRangesJob : IJobChunk
+        public struct UpdateLODRangesJob : IJobChunk
         {
             [ReadOnly] public ComponentLookup<MeshLODGroupComponent>    MeshLODGroupComponent;
 
             public ComponentTypeHandle<MeshLODComponent>                MeshLODComponent;
-            [ReadOnly] public ComponentLookup<LocalToWorld>     LocalToWorldLookup;
             public ComponentTypeHandle<RootLODRange>                    RootLODRange;
             public ComponentTypeHandle<LODRange>                        LODRange;
 
@@ -199,18 +211,10 @@ namespace Unity.Rendering
                     var lodGroupEntity = meshLod.Group;
                     var lodMask = meshLod.LODMask;
                     var lodGroup = MeshLODGroupComponent[lodGroupEntity];
-
-                    lodRange[i] = new LODRange(lodGroup, lodMask);
-
-                }
-
-                for (int i = 0; i < instanceCount; i++)
-                {
-                    var meshLod = meshLods[i];
-                    var lodGroupEntity = meshLod.Group;
-                    var lodGroup = MeshLODGroupComponent[lodGroupEntity];
                     var parentMask = lodGroup.ParentMask;
                     var parentGroupEntity = lodGroup.ParentGroup;
+
+                    lodRange[i] = new LODRange(lodGroup, lodMask);
 
                     // Store LOD parent group in MeshLODComponent to avoid double indirection for every entity
                     meshLod.ParentGroup = parentGroupEntity;
@@ -237,7 +241,7 @@ namespace Unity.Rendering
         }
 
         [BurstCompile]
-        struct UpdateLODGroupWorldReferencePointsJob : IJobChunk
+        internal struct UpdateLODGroupWorldReferencePointsJob : IJobChunk
         {
             [ReadOnly] public ComponentTypeHandle<MeshLODGroupComponent> MeshLODGroupComponent;
             [ReadOnly] public ComponentTypeHandle<LocalToWorld> LocalToWorld;
@@ -261,7 +265,7 @@ namespace Unity.Rendering
         }
 
         [BurstCompile]
-        struct UpdateLODWorldReferencePointsJob : IJobChunk
+        internal struct UpdateLODWorldReferencePointsJob : IJobChunk
         {
             [ReadOnly] public ComponentTypeHandle<MeshLODComponent> MeshLODComponent;
             [ReadOnly] public ComponentLookup<LODGroupWorldReferencePoint> LODGroupWorldReferencePoint;
@@ -285,11 +289,6 @@ namespace Unity.Rendering
                     var lodGroupWorldReferencePoint = LODGroupWorldReferencePoint[lodGroupEntity].Value;
 
                     lodWorldReferencePoint[i] = new LODWorldReferencePoint { Value = lodGroupWorldReferencePoint };
-                }
-
-                for (int i = 0; i < instanceCount; i++)
-                {
-                    var meshLod = meshLods[i];
                     var parentGroupEntity = meshLod.ParentGroup;
 
                     RootLODWorldReferencePoint rootPoint;
@@ -313,13 +312,36 @@ namespace Unity.Rendering
         protected override void OnCreate()
         {
             // Change filter: LODGroupConversion add MeshLODComponent for all LOD children. When the MeshLODComponent is added/changed, we recalculate LOD ranges.
-            m_UpdatedLODRanges = GetEntityQuery(ComponentType.ReadOnly<LocalToWorld>(), typeof(MeshLODComponent), typeof(RootLODRange), typeof(LODRange));
+            m_UpdatedLODRanges = GetEntityQuery(new EntityQueryDesc
+            {
+                All = new ComponentType[]
+                {
+                    ComponentType.ReadOnly<LocalToWorld>(), typeof(MeshLODComponent), typeof(RootLODRange), typeof(LODRange)
+                },
+                None = new ComponentType[] { typeof(SkipLODRangeUpdate) }
+            });
             m_UpdatedLODRanges.SetChangedVersionFilter(ComponentType.ReadWrite<MeshLODComponent>());
 
-            m_LODReferencePoints = GetEntityQuery(ComponentType.ReadOnly<LocalToWorld>(), ComponentType.ReadOnly<MeshLODComponent>(), typeof(RootLODWorldReferencePoint), typeof(LODWorldReferencePoint));
+            m_LODReferencePoints = GetEntityQuery(new EntityQueryDesc
+            {
+                All = new ComponentType[]
+                {
+                    ComponentType.ReadOnly<LocalToWorld>(), ComponentType.ReadOnly<MeshLODComponent>(),
+                    typeof(RootLODWorldReferencePoint), typeof(LODWorldReferencePoint)
+                },
+                None = new ComponentType[] { typeof(SkipLODWorldReferencePointUpdate) }
+            });
 
             // Change filter: LOD Group world reference points only change when MeshLODGroupComponent or LocalToWorld change
-            m_LODGroupReferencePoints = GetEntityQuery(ComponentType.ReadOnly<MeshLODGroupComponent>(), ComponentType.ReadOnly<LocalToWorld>(), typeof(LODGroupWorldReferencePoint));
+            m_LODGroupReferencePoints = GetEntityQuery(new EntityQueryDesc()
+            {
+                All = new ComponentType[]
+                {
+                    ComponentType.ReadOnly<MeshLODGroupComponent>(), ComponentType.ReadOnly<LocalToWorld>(),
+                    typeof(LODGroupWorldReferencePoint)
+                },
+                None = new ComponentType[] { typeof(SkipLODGroupWorldReferencePointUpdate) }
+            });
             m_LODGroupReferencePoints.SetChangedVersionFilter(new[] { ComponentType.ReadWrite<MeshLODGroupComponent>(), ComponentType.ReadWrite<LocalToWorld>() });
 
             MeshLODGroupComponent = GetComponentLookup<MeshLODGroupComponent>(true);
@@ -342,7 +364,6 @@ namespace Unity.Rendering
             {
                 MeshLODGroupComponent = MeshLODGroupComponent,
                 MeshLODComponent = MeshLODComponent,
-                LocalToWorldLookup = LocalToWorldLookup,
                 RootLODRange = RootLODRange,
                 LODRange = LODRange
             };
@@ -356,7 +377,6 @@ namespace Unity.Rendering
 
             var updateReferencePointJob = new UpdateLODWorldReferencePointsJob
             {
-                //MeshLODGroupComponent = GetComponentLookup<MeshLODGroupComponent>(true),
                 MeshLODComponent = GetComponentTypeHandle<MeshLODComponent>(true),
                 LODGroupWorldReferencePoint = GetComponentLookup<LODGroupWorldReferencePoint>(true),
                 RootLODWorldReferencePoint = GetComponentTypeHandle<RootLODWorldReferencePoint>(),
@@ -366,9 +386,7 @@ namespace Unity.Rendering
             var depLODRanges = updateLODRangesJob.ScheduleParallel(m_UpdatedLODRanges, Dependency);
             var depGroupReferencePoints = updateGroupReferencePointJob.ScheduleParallel(m_LODGroupReferencePoints, Dependency);
             var depCombined = JobHandle.CombineDependencies(depLODRanges, depGroupReferencePoints);
-            var depReferencePoints = updateReferencePointJob.ScheduleParallel(m_LODReferencePoints, depCombined);
-
-            Dependency = JobHandle.CombineDependencies(depReferencePoints, depReferencePoints);
+            Dependency = updateReferencePointJob.ScheduleParallel(m_LODReferencePoints, depCombined);
         }
     }
 }

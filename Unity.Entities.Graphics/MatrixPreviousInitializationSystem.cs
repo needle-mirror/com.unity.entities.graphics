@@ -21,7 +21,7 @@ namespace Unity.Rendering
         private EntityQuery m_GroupPrev;
 
         [BurstCompile]
-        struct InitializeMatrixPrevious : IJobChunk
+        public struct InitializeMatrixPrevious : IJobChunk
         {
             [ReadOnly] public ComponentTypeHandle<LocalToWorld> LocalToWorldTypeHandle;
             public ComponentTypeHandle<BuiltinMaterialPropertyUnity_MatrixPreviousM> MatrixPreviousTypeHandle;
@@ -62,6 +62,10 @@ namespace Unity.Rendering
                 {
                     ComponentType.ReadOnly<LocalToWorld>(),
                     ComponentType.ReadWrite<BuiltinMaterialPropertyUnity_MatrixPreviousM>(),
+                },
+                None = new []
+                {
+                    ComponentType.ReadOnly<SkipBuiltinMaterialPropertyUnity_MatrixPreviousMUpdate>()
                 },
                 Options = EntityQueryOptions.FilterWriteGroup
             });

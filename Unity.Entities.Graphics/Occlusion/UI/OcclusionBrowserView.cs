@@ -92,7 +92,7 @@ public class OcclusionBrowserView : VisualElement
             if (visualElement is OcclusionBrowserView browserView)
             {
                 browserView.Initialize();
-                
+
                 browserView.ViewName = viewName.GetValueFromBag(bag, creationContext);
                 browserView.CurrentSlice = currentSlice.GetValueFromBag(bag, creationContext);
                 browserView.container = browserView.contentContainer;
@@ -129,7 +129,7 @@ public class OcclusionBrowserView : VisualElement
                         paddingTop = 0,
                         paddingLeft = 0,
                         paddingRight = 0,
-                        
+
                         backgroundImage = background,
                     }
             };
@@ -145,7 +145,7 @@ public class OcclusionBrowserView : VisualElement
         }
         viewData.RegisterCallback<MouseMoveEvent>(OnMouseMoveEvent);
         viewData.RegisterCallback<MouseLeaveEvent>(OnMouseLeaveEvent);
-        
+
         SelectSlice(currentSelection);
     }
 
@@ -220,6 +220,7 @@ public class OcclusionBrowserView : VisualElement
 
         MeshWriteData mwd = mgc.Allocate(vertices.Length, indices.Length, CurrentSliceTexture);
 
+#if !UNITY_2023_2_OR_NEWER
         // Since the texture may be stored in an atlas, the UV coordinates need to be
         // adjusted. Simply rescale them in the provided uvRegion.
         Rect uvRegion = mwd.uvRegion;
@@ -227,6 +228,7 @@ public class OcclusionBrowserView : VisualElement
         vertices[1].uv = new Vector2(0, 0) * uvRegion.size + uvRegion.min;
         vertices[2].uv = new Vector2(1, 0) * uvRegion.size + uvRegion.min;
         vertices[3].uv = new Vector2(1, 1) * uvRegion.size + uvRegion.min;
+#endif
 
         mwd.SetAllVertices(vertices);
         mwd.SetAllIndices(indices);
