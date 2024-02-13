@@ -5,6 +5,7 @@ To upgrade to Entities Graphics package version 1.0, you need to do the followin
 * Remove usage of HLOD.
 * Replace runtime usage of `RenderMesh` with `RenderMeshArray`.
 * Replace usage of rendering settings in `RenderMesh` with rendering settings in `RenderFilterSettings`.
+* Replace Managed SharedComponent `RenderMesh` with unmanaged IComponentData `RenderMeshUnmanaged` for big performance gain while baking
 
 ## Remove HLOD
 
@@ -21,3 +22,10 @@ The `RenderMesh` component still exists as a convenient intermediate step during
 Entities Graphics 1.0 moves many rendering settings from the `RenderMesh` shared component to the `RenderFilterSettings` shared component. This includes settings such as rendering layer settings, motion vector rendering settings, and shadow rendering settings. To upgrade Entities Graphics to 1.0, you must update any code that uses the settings in `RenderMesh` to use the settings in `RenderFilterSettings`.
 
 For a full list of changes and updates in this version, refer to the Entities Graphics package [changelog](xref:changelog).
+
+## Replace Managed SharedComponent `RenderMesh` with unmanaged IComponentData `RenderMeshUnmanaged` for big performance gain while baking
+
+Added an unmanaged version of `RenderMesh` as a normal `IComponentData`. 
+Similar to `RenderMesh`, when `RenderMeshUnmanaged` is added in a baker, it will ensure a mesh and material is correctly put into the baked `RenderMeshArray`.
+Note, the old `RenderMesh` component still works as a managed SharedComponent, as a baking system, `RenderMeshToRenderMeshUnmanagedBakingSystem` will make sure to turn it into the correct unmanaged version.
+

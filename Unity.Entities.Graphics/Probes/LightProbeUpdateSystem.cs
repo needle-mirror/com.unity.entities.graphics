@@ -15,20 +15,48 @@ namespace Unity.Rendering
     [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
     partial class LightProbeUpdateSystem : SystemBase
     {
-        EntityQuery m_ProbeGridQuery;
+        private EntityQuery m_ProbeGridQuery;
+        private EntityQuery m_ProbeGridAnchorQuery;
 
-        private ComponentType[] gridQueryFilter = {ComponentType.ReadOnly<LocalToWorld>(), ComponentType.ReadWrite<BlendProbeTag>()};
+        private readonly EntityQueryDesc m_ProbeGridQueryDesc = new()
+        {
+            All = new []
+            {
+                ComponentType.ReadWrite<BuiltinMaterialPropertyUnity_SHCoefficients>(),
+                ComponentType.ReadOnly<WorldRenderBounds>(),
+                ComponentType.ReadOnly<BlendProbeTag>()
+            },
+            None = new []
+            {
+                ComponentType.ReadOnly<OverrideLightProbeAnchorComponent>()
+            }
+        };
+
+        private readonly EntityQueryDesc m_ProbeGridAnchorQueryDesc = new()
+        {
+            All = new []
+            {
+                ComponentType.ReadWrite<BuiltinMaterialPropertyUnity_SHCoefficients>(),
+                ComponentType.ReadOnly<WorldRenderBounds>(),
+                ComponentType.ReadOnly<BlendProbeTag>(),
+                ComponentType.ReadOnly<OverrideLightProbeAnchorComponent>()
+            }
+        };
+
+        private readonly ComponentType[] gridQueryFilter = {ComponentType.ReadOnly<WorldRenderBounds>(), ComponentType.ReadWrite<BlendProbeTag>()};
+        private readonly ComponentType[] gridQueryAnchorFilter = { ComponentType.ReadOnly<OverrideLightProbeAnchorComponent>(), ComponentType.ReadWrite<BlendProbeTag>() };
+
         private ComponentType[] gridQueryFilterForAmbient = { ComponentType.ReadWrite<BlendProbeTag>() };
 
         /// <inheritdoc/>
         protected override void OnCreate()
         {
-            m_ProbeGridQuery = GetEntityQuery(
-                ComponentType.ReadWrite<BuiltinMaterialPropertyUnity_SHCoefficients>(),
-                ComponentType.ReadOnly<LocalToWorld>(),
-                ComponentType.ReadOnly<BlendProbeTag>()
-            );
+            m_ProbeGridQuery = GetEntityQuery(m_ProbeGridQueryDesc);
             m_ProbeGridQuery.SetChangedVersionFilter(gridQueryFilter);
+
+            m_ProbeGridAnchorQuery = GetEntityQuery(m_ProbeGridAnchorQueryDesc);
+            // Probes with anchors can't use filters because updating the position of the anchor
+            // would not update the probes
         }
 
         internal static bool IsValidLightProbeGrid()
@@ -84,10 +112,39 @@ namespace Unity.Rendering
             Profiler.BeginSample("UpdateEntitiesFromGrid");
 
             var SHType = GetComponentTypeHandle<BuiltinMaterialPropertyUnity_SHCoefficients>();
-            var localToWorldType = GetComponentTypeHandle<LocalToWorld>();
+            var worldRenderBoundsType = GetComponentTypeHandle<WorldRenderBounds>();
+            var overrideLightProbeAnchorType = GetComponentTypeHandle<OverrideLightProbeAnchorComponent>(true);
 
-            var chunks  = m_ProbeGridQuery.ToArchetypeChunkArray(Allocator.Temp);
-            if (chunks.Length == 0)
+            var gridAnchorChunks = m_ProbeGridAnchorQuery.ToArchetypeChunkArray(Allocator.Temp);
+            if (gridAnchorChunks.Length > 0)
+            {
+                //TODO: Bring this off the main thread when we have new c++ API
+                Dependency.Complete();
+            }
+            foreach (var chunk in gridAnchorChunks)
+            {
+                var chunkSH = chunk.GetNativeArray(ref SHType);
+
+                m_Positions.Clear();
+                m_LightProbes.Clear();
+                m_OcclusionProbes.Clear();
+
+                var positions = chunk.GetNativeArray(ref overrideLightProbeAnchorType);
+                for (var i = 0; i != positions.Length; i++)
+                    m_Positions.Add(SystemAPI.GetComponent<LocalToWorld>(positions[i].entity).Position);
+
+                LightProbes.CalculateInterpolatedLightAndOcclusionProbes(m_Positions, m_LightProbes, m_OcclusionProbes);
+
+                for (var i = 0; i < m_Positions.Count; ++i)
+                {
+                    var shCoefficients = new SHCoefficients(m_LightProbes[i], m_OcclusionProbes[i]);
+                    chunkSH[i] = new BuiltinMaterialPropertyUnity_SHCoefficients() {Value = shCoefficients};
+                }
+            }
+
+            var gridChunks  = m_ProbeGridQuery.ToArchetypeChunkArray(Allocator.Temp);
+
+            if (gridChunks.Length == 0 && gridAnchorChunks.Length == 0)
             {
                 Profiler.EndSample();
                 return;
@@ -96,26 +153,27 @@ namespace Unity.Rendering
             //TODO: Bring this off the main thread when we have new c++ API
             Dependency.Complete();
 
-            foreach (var chunk in chunks)
+            foreach (var chunk in gridChunks)
             {
                 var chunkSH = chunk.GetNativeArray(ref SHType);
-                var chunkLocalToWorld = chunk.GetNativeArray(ref localToWorldType);
 
                 m_Positions.Clear();
                 m_LightProbes.Clear();
                 m_OcclusionProbes.Clear();
 
-                for (int i = 0; i != chunkLocalToWorld.Length; i++)
-                    m_Positions.Add(chunkLocalToWorld[i].Position);
+                var bounds = chunk.GetNativeArray(ref worldRenderBoundsType);
+                for (var i = 0; i != bounds.Length; i++)
+                    m_Positions.Add(bounds[i].Value.Center);
 
                 LightProbes.CalculateInterpolatedLightAndOcclusionProbes(m_Positions, m_LightProbes, m_OcclusionProbes);
 
-                for (int i = 0; i < m_Positions.Count; ++i)
+                for (var i = 0; i < m_Positions.Count; ++i)
                 {
                     var shCoefficients = new SHCoefficients(m_LightProbes[i], m_OcclusionProbes[i]);
                     chunkSH[i] = new BuiltinMaterialPropertyUnity_SHCoefficients() {Value = shCoefficients};
                 }
             }
+
             Profiler.EndSample();
         }
 

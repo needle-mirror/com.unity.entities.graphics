@@ -15,40 +15,67 @@ namespace Unity.Rendering
         /// <summary>
         /// An array of color maps.
         /// </summary>
-        public Texture2DArray colors;
+        public UnityObjectRef<Texture2DArray> colorsRef;
+
+        /// <summary>
+        /// An array of color maps.
+        /// </summary>
+        public Texture2DArray colors
+        {
+            get => colorsRef;
+            set => colorsRef = value;
+        }
 
         /// <summary>
         /// An array of directional maps.
         /// </summary>
-        public Texture2DArray directions;
+        public UnityObjectRef<Texture2DArray> directionsRef;
+
+        /// <summary>
+        /// An array of directional maps.
+        /// </summary>
+        public Texture2DArray directions
+        {
+            get => directionsRef;
+            set => directionsRef = value;
+        }
 
         /// <summary>
         /// An array of Shadow masks.
         /// </summary>
-        public Texture2DArray shadowMasks;
+        public UnityObjectRef<Texture2DArray> shadowMasksRef;
 
         /// <summary>
-        /// Indicates whether the container stores any directional maps. 
+        /// An array of Shadow masks.
         /// </summary>
-        public bool hasDirections => directions != null && directions.depth > 0;
+        public Texture2DArray shadowMasks
+        {
+            get => shadowMasksRef;
+            set => shadowMasksRef = value;
+        }
+
+        /// <summary>
+        /// Indicates whether the container stores any directional maps.
+        /// </summary>
+        public bool hasDirections => directionsRef != null && directionsRef.Value != null && directionsRef.Value.depth > 0;
 
         /// <summary>
         /// Indicates whether the container stores any shadow masks.
         /// </summary>
-        public bool hasShadowMask => shadowMasks != null && shadowMasks.depth > 0;
+        public bool hasShadowMask => shadowMasksRef != null && shadowMasksRef.Value != null && shadowMasksRef.Value.depth > 0;
 
         /// <summary>
         /// Indicates whether the container stores any color maps.
         /// </summary>
-        public bool isValid => colors != null;
+        public bool isValid => colorsRef != null;
 
         /// <inheritdoc/>
         public bool Equals(LightMaps other)
         {
             return
-                colors == other.colors &&
-                directions == other.directions &&
-                shadowMasks == other.shadowMasks;
+                colorsRef == other.colorsRef &&
+                directionsRef == other.directionsRef &&
+                shadowMasksRef == other.shadowMasksRef;
         }
 
         /// <summary>
@@ -58,9 +85,9 @@ namespace Unity.Rendering
         public override int GetHashCode()
         {
             int hash = 0;
-            if (!ReferenceEquals(colors, null)) hash ^= colors.GetHashCode();
-            if (!ReferenceEquals(directions, null)) hash ^= directions.GetHashCode();
-            if (!ReferenceEquals(shadowMasks, null)) hash ^= shadowMasks.GetHashCode();
+            if (!ReferenceEquals(colorsRef, null)) hash ^= colorsRef.GetHashCode();
+            if (!ReferenceEquals(directionsRef, null)) hash ^= directionsRef.GetHashCode();
+            if (!ReferenceEquals(shadowMasksRef, null)) hash ^= shadowMasksRef.GetHashCode();
             return hash;
         }
 
@@ -104,9 +131,9 @@ namespace Unity.Rendering
         {
             var result = new LightMaps
             {
-                colors = CopyToTextureArray(inColors),
-                directions = CopyToTextureArray(inDirections),
-                shadowMasks = CopyToTextureArray(inShadowMasks)
+                colorsRef = CopyToTextureArray(inColors),
+                directionsRef = CopyToTextureArray(inDirections),
+                shadowMasksRef = CopyToTextureArray(inShadowMasks)
             };
             return result;
         }

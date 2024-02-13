@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.2.0-pre.6",
+  "version": "1.2.0-pre.12",
   "unity": "2022.3",
   "unityRelease": "11f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.2.0-pre.6",
+    "com.unity.entities": "1.2.0-pre.12",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.9"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Changed\n\n* Promotion preparation"
+    "changelog": "### Added\n\n* `RenderMeshUnmanaged` an unmanaged IComponentData using the new UnityObjRef<T> for big performance gains in baking!\n* Support for light probe anchor overrides\n\n### Changed\n\n* MaterialMeshInfo.SubMesh chaned from sbyte to ushort, allowing for the full range of submesh indices.\n* The sharedcomponents `Lightmaps` and `RenderMeshArray` now store UnityObjRef<T> instead.\n\n### Deprecated\n\n* The baking sharedcomponent `RenderMesh` is now obsolete, in favor of a new `RenderMeshUnmanaged`.\n\n### Fixed\n\n* Improved handling of smaller transforms\n* Light probes now use the center of world bounding box as the reference point, same as game objects\n* Materials sometimes not correctly baked when using ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING"
   },
   "upmCi": {
-    "footprint": "0fde38edcab1fa7e4dda9ae6b0a8862fe8f2d635"
+    "footprint": "22f7abd51ca2ffd95a065b596f1181dfa8a4bb35"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.2/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "c2136868e2bfbe78d7c68475d8ced6c623b4cb6d"
+    "revision": "1ae43e0525b8a09c7fe52ab40c762938a4937244"
   }
 }

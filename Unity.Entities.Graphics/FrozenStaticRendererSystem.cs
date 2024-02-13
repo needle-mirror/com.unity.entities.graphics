@@ -14,7 +14,7 @@ namespace Unity.Rendering
             var group = GetEntityQuery(
                 new EntityQueryDesc
                 {
-                    All = new ComponentType[] { typeof(SceneSection), typeof(RenderMesh), typeof(LocalToWorld), typeof(Static) },
+                    All = new ComponentType[] { typeof(SceneSection), typeof(RenderMeshUnmanaged), typeof(LocalToWorld), typeof(Static) },
                     None = new ComponentType[] { typeof(FrozenRenderSceneTag) }
                 });
 

@@ -6,6 +6,7 @@ using System.Linq;
 using Unity.Assertions;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine;
 using Hash128 = UnityEngine.Hash128;
 
@@ -24,7 +25,7 @@ namespace Unity.Rendering
 
         struct MaterialLookupKey
         {
-            public Material BaseMaterial;
+            public UnityObjectRef<Material> BaseMaterial;
             public LightMaps LightMaps;
             public LightMappingFlags Flags;
         }
@@ -72,7 +73,7 @@ namespace Unity.Rendering
             }
         }
 
-        public class LightMapReference
+        public struct LightMapReference
         {
             public LightMaps LightMaps;
             public int LightMapIndex;
@@ -84,10 +85,13 @@ namespace Unity.Rendering
         private int m_NumLightMappedMaterialCacheMisses;
 
         private Dictionary<LightMapKey, LightMapReference> m_LightMapArrayCache;
-        private Dictionary<MaterialLookupKey, Material> m_LightMappedMaterialCache = new Dictionary<MaterialLookupKey, Material>();
+        private Dictionary<MaterialLookupKey, UnityObjectRef<Material>> m_LightMappedMaterialCache = new ();
 
         private List<int> m_UsedLightmapIndices = new List<int>();
         private Dictionary<int, LightMapReference> m_LightMapReferences;
+        static readonly int k_UnityLightmaps = Shader.PropertyToID("unity_Lightmaps");
+        static readonly int k_UnityLightmapsInd = Shader.PropertyToID("unity_LightmapsInd");
+        static readonly int k_UnityShadowMasks = Shader.PropertyToID("unity_ShadowMasks");
 
         public LightMapBakingContext()
         {
@@ -97,7 +101,7 @@ namespace Unity.Rendering
         public void Reset()
         {
             m_LightMapArrayCache = new Dictionary<LightMapKey, LightMapReference>();
-            m_LightMappedMaterialCache = new Dictionary<MaterialLookupKey, Material>();
+            m_LightMappedMaterialCache = new ();
 
             BeginConversion();
         }
@@ -190,15 +194,10 @@ namespace Unity.Rendering
             }
         }
 
-        public LightMapReference GetLightMapReference(Renderer renderer)
-        {
-            if (m_LightMapReferences.TryGetValue(renderer.lightmapIndex, out var lightMapRef))
-                return lightMapRef;
-            else
-                return null;
-        }
+        public bool TryGetLightMapReference(int lightmapIndex, out LightMapReference lightMapRef)
+            => m_LightMapReferences.TryGetValue(lightmapIndex, out lightMapRef);
 
-        public Material GetLightMappedMaterial(Material baseMaterial, LightMapReference lightMapRef)
+        public UnityObjectRef<Material> GetLightMappedMaterial(UnityObjectRef<Material> baseMaterial, LightMapReference lightMapRef)
         {
             var flags = LightMappingFlags.Lightmapped;
             if (lightMapRef.LightMaps.hasDirections)
@@ -227,25 +226,25 @@ namespace Unity.Rendering
             }
         }
 
-        private static Material CreateLightMappedMaterial(Material material, LightMaps lightMaps)
+        private static UnityObjectRef<Material> CreateLightMappedMaterial(UnityObjectRef<Material> material, LightMaps lightMaps)
         {
             var lightMappedMaterial = new Material(material);
             lightMappedMaterial.name = $"{lightMappedMaterial.name}_Lightmapped_";
             lightMappedMaterial.EnableKeyword("LIGHTMAP_ON");
 
-            lightMappedMaterial.SetTexture("unity_Lightmaps", lightMaps.colors);
-            lightMappedMaterial.SetTexture("unity_LightmapsInd", lightMaps.directions);
-            lightMappedMaterial.SetTexture("unity_ShadowMasks", lightMaps.shadowMasks);
+            lightMappedMaterial.SetTexture(k_UnityLightmaps, lightMaps.colorsRef);
+            lightMappedMaterial.SetTexture(k_UnityLightmapsInd, lightMaps.directionsRef);
+            lightMappedMaterial.SetTexture(k_UnityShadowMasks, lightMaps.shadowMasksRef);
 
             if (lightMaps.hasDirections)
             {
-                lightMappedMaterial.name = lightMappedMaterial.name + "_DIRLIGHTMAP";
+                lightMappedMaterial.name += "_DIRLIGHTMAP";
                 lightMappedMaterial.EnableKeyword("DIRLIGHTMAP_COMBINED");
             }
 
             if (lightMaps.hasShadowMask)
             {
-                lightMappedMaterial.name = lightMappedMaterial.name + "_SHADOW_MASK";
+                lightMappedMaterial.name += "_SHADOW_MASK";
             }
 
             return lightMappedMaterial;
@@ -285,34 +284,20 @@ namespace Unity.Rendering
             m_LightMapBakingContext.ProcessLightMapsForConversion();
         }
 
-        internal Material ConfigureHybridLightMapping(
-            Entity entity,
-            EntityCommandBuffer ecb,
-            Renderer renderer,
-            Material material)
+        internal (UnityObjectRef<Material>, LightMaps) GetHybridLightMapping(
+            ref BuiltinMaterialPropertyUnity_LightmapIndex lightmapIndexRef,
+            int lightmapIndex, UnityObjectRef<Material> material)
         {
-            var staticLightingMode = RenderMeshUtility.StaticLightingModeFromRenderer(renderer);
-            if (staticLightingMode == RenderMeshUtility.StaticLightingMode.LightMapped)
+            if (RenderMeshUtility.IsLightMapped(lightmapIndex) &&
+                m_LightMapBakingContext.TryGetLightMapReference(lightmapIndex, out var lightMapRef))
             {
-                var lightMapRef = m_LightMapBakingContext.GetLightMapReference(renderer);
-
-                if (lightMapRef != null)
-                {
-                    Material lightMappedMaterial =
-                        m_LightMapBakingContext.GetLightMappedMaterial(material, lightMapRef);
-
-                    ecb.AddComponent(entity,
-                        new BuiltinMaterialPropertyUnity_LightmapST()
-                            {Value = renderer.lightmapScaleOffset});
-                    ecb.AddComponent(entity,
-                        new BuiltinMaterialPropertyUnity_LightmapIndex() {Value = lightMapRef.LightMapIndex});
-                    ecb.AddSharedComponentManaged(entity, lightMapRef.LightMaps);
-
-                    return lightMappedMaterial;
-                }
+                var lightMappedMaterial =
+                    m_LightMapBakingContext.GetLightMappedMaterial(material, lightMapRef);
+                lightmapIndexRef.Value = lightMapRef.LightMapIndex;
+                return (lightMappedMaterial, lightMapRef.LightMaps);
             }
 
-            return null;
+            return default;
         }
     }
 }

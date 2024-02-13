@@ -538,20 +538,22 @@ namespace Unity.Rendering
 
                     for (int i = 0; i < materialCount; ++i)
                     {
-                        var material = renderArray.Materials[i];
+                        var material = renderArray.MaterialsInternal[i];
                         var id = m_RendererSystem.RegisterMaterial(material);
                         if (id == BatchMaterialID.Null)
-                            Debug.LogWarning($"Registering material {material?.ToString() ?? "null"} at index {i} inside a RenderMeshArray failed.");
+                        {
+                            Debug.LogWarning($"Registering material {(material != null ? material.Value.ToString() : "null")} at index {i} inside a RenderMeshArray failed.");
+                        }
 
                         brgRenderArray.UniqueMaterials.Add(id);
                     }
 
                     for (int i = 0; i < meshCount; ++i)
                     {
-                        var mesh = renderArray.Meshes[i];
+                        var mesh = renderArray.MeshesInternal[i];
                         var id = m_RendererSystem.RegisterMesh(mesh);
                         if (id == BatchMeshID.Null)
-                            Debug.LogWarning($"Registering mesh {mesh?.ToString() ?? "null"} at index {i} inside a RenderMeshArray failed.");
+                            Debug.LogWarning($"Registering mesh {(mesh != null ? mesh.Value.ToString() : "null")} at index {i} inside a RenderMeshArray failed.");
 
                         brgRenderArray.UniqueMeshes.Add(id);
                     }
@@ -2134,6 +2136,8 @@ namespace Unity.Rendering
 
                 m_ChunkMetadataAllocator.Release(metadataAllocation);
             }
+
+            m_ThreadedBatchContext.RemoveBatch(new BatchID { value = (uint) batchIndex });
         }
 
         static int NumInstancesInChunk(ArchetypeChunk chunk) => chunk.Capacity;

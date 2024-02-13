@@ -1,11 +1,12 @@
 
 //#define ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
 
-using System.Collections.Generic;
-using System.Linq;
-using Unity.Assertions;
+using System;
+using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Core;
 using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
@@ -35,20 +36,17 @@ namespace Unity.Rendering
             var meshFilter = GetComponent<MeshFilter>();
             var mesh = (meshFilter != null) ? GetComponent<MeshFilter>().sharedMesh : null;
 
-            var sharedMaterials = new List<Material>();
-            authoring.GetSharedMaterials(sharedMaterials);
-
-            List<Entity> additionalEntities = null;
+            NativeArray<Entity> additionalEntities = default;
 
 #if ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
-            MeshRendererBakingUtility.ConvertOnPrimaryEntity(this, authoring, mesh, sharedMaterials);
+            MeshRendererBakingUtility.ConvertOnPrimaryEntity(this, authoring, mesh);
 #else
-            MeshRendererBakingUtility.ConvertOnPrimaryEntityForSingleMaterial(this, authoring, mesh, sharedMaterials, null, out additionalEntities);
+            MeshRendererBakingUtility.ConvertOnPrimaryEntityForSingleMaterial(this, authoring, mesh, out additionalEntities);
 #endif
 
             DependsOnLightBaking();
 
-            if (additionalEntities == null || additionalEntities.Count == 0)
+            if (additionalEntities.Length == 0)
             {
                 var mainEntity = GetEntity(TransformUsageFlags.Renderable);
                 AddComponent(mainEntity, new MeshRendererBakingData { MeshRenderer = authoring });
@@ -56,10 +54,11 @@ namespace Unity.Rendering
             else
             {
                 foreach (var entity in additionalEntities)
-                {
                     AddComponent(entity, new MeshRendererBakingData { MeshRenderer = authoring });
-                }
             }
+
+            if (additionalEntities.IsCreated)
+                additionalEntities.Dispose();
         }
     }
 
@@ -79,6 +78,58 @@ namespace Unity.Rendering
             );
         }
     }
+
+    [RequireMatchingQueriesForUpdate]
+    [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
+    [UpdateBefore(typeof(MeshRendererBaking))]
+    #pragma warning disable EA0007 // This disables sourcegen for the system.
+                                   // As the system uses obsolete code, we need to use a pragma to disable it
+                                   // but Entities SourceGen doesn't copy pragmas. So to disable the obsolete warning
+                                   // we need to not use sourcegen, this ensures that.
+    #pragma warning disable 618
+    struct RenderMeshToRenderMeshUnmanagedBakingSystem : ISystem
+    {
+        EntityQuery m_RenderMeshQuery;
+        public void OnCreate(ref SystemState state)
+        {
+            m_RenderMeshQuery = new EntityQueryBuilder(state.WorldUpdateAllocator)
+                .WithAll<RenderMesh>()
+                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
+                .Build(ref state);
+        }
+
+        public void OnUpdate(ref SystemState state)
+        {
+            state.EntityManager.AddComponent<RenderMeshUnmanaged>(m_RenderMeshQuery);
+            using var ecb = new EntityCommandBuffer(state.WorldUpdateAllocator);
+            using var renderMeshEntities = m_RenderMeshQuery.ToEntityArray(state.WorldUpdateAllocator);
+            foreach (var entity in renderMeshEntities)
+            {
+                var renderMesh = state.EntityManager.GetSharedComponentManaged<RenderMesh>(entity);
+                if (renderMesh.materials == null)
+                {
+                    state.EntityManager.SetComponentData(entity, new RenderMeshUnmanaged(renderMesh.mesh, null, new SubMeshIndexInfo32((ushort) renderMesh.subMesh)));
+                    continue;
+                }
+
+                var materialCount = renderMesh.materials.Count;
+                if (materialCount == 1)
+                {
+                    state.EntityManager.SetComponentData(entity, new RenderMeshUnmanaged(renderMesh.mesh, renderMesh.material, new SubMeshIndexInfo32((ushort) renderMesh.subMesh)));
+                }
+                else
+                {
+                    state.EntityManager.SetComponentData(entity, new RenderMeshUnmanaged(renderMesh.mesh, renderMesh.materials[0], new SubMeshIndexInfo32(0, (byte)materialCount)));
+
+                    var additionalMaterials = ecb.AddBuffer<MeshRendererBakingUtility.MaterialReferenceElement>(entity);
+                    for (int i = 1; i < materialCount; i++)
+                        additionalMaterials.Add(new MeshRendererBakingUtility.MaterialReferenceElement { Material = renderMesh.materials[i] });
+                }
+            }
+        }
+    }
+    #pragma warning restore 618
+    #pragma warning restore EA0007
 
     [RequireMatchingQueriesForUpdate]
     [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
@@ -106,42 +157,66 @@ namespace Unity.Rendering
 
             context.ProcessLightMapsForConversion();
 
-            var ecb = new EntityCommandBuffer(Allocator.TempJob);
-            foreach (var (renderMesh, authoring, entity) in SystemAPI.Query<RenderMesh, RefRO<MeshRendererBakingData>>()
-                         .WithEntityAccess()
+            using var ecb = new EntityCommandBuffer(state.WorldUpdateAllocator);
+            foreach (var (renderMesh, meshRenderRef, lightmapStRef, lightmapIndexRef, entity)
+                     in SystemAPI.Query<
+                             RefRW<RenderMeshUnmanaged>, RefRO<MeshRendererBakingData>,
+                             RefRW<BuiltinMaterialPropertyUnity_LightmapST>, RefRW<BuiltinMaterialPropertyUnity_LightmapIndex>
+                         >().WithEntityAccess()
+                         .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
+                         .WithNone<MeshRendererBakingUtility.MaterialReferenceElement>())
+            {
+                ref var mainMaterialRef = ref renderMesh.ValueRW.materialForSubMesh;
+                SetupLightmapping(context, ecb, entity, meshRenderRef, lightmapStRef, lightmapIndexRef, ref mainMaterialRef);
+            }
+
+            foreach (var (renderMesh, meshRenderRef, extraMaterials,lightmapStRef, lightmapIndexRef, entity)
+                     in SystemAPI.Query<
+                             RefRW<RenderMeshUnmanaged>, RefRO<MeshRendererBakingData>, DynamicBuffer<MeshRendererBakingUtility.MaterialReferenceElement>,
+                             RefRW<BuiltinMaterialPropertyUnity_LightmapST>, RefRW<BuiltinMaterialPropertyUnity_LightmapIndex>
+                         >().WithEntityAccess()
                          .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities))
             {
-                if (renderMesh.materials == null)
-                    continue;
+                ref var mainMaterialRef = ref renderMesh.ValueRW.materialForSubMesh;
+                SetupLightmapping(context, ecb, entity, meshRenderRef, lightmapStRef, lightmapIndexRef, ref mainMaterialRef);
 
-                Renderer renderer = authoring.ValueRO.MeshRenderer;
-
-                List<Material> newMaterials = new List<Material>(renderMesh.materials);
-
-                for (int i = 0; i < newMaterials.Count; ++i)
+                for (int i = 0; i < extraMaterials.Length; i++)
                 {
-                    var lightmappedMaterial = context.ConfigureHybridLightMapping(
-                        entity,
-                        ecb,
-                        renderer,
-                        newMaterials[i]);
-
-                    if (lightmappedMaterial != null)
-                        newMaterials[i] = lightmappedMaterial;
+                    ref var extraMaterialRef = ref extraMaterials.ElementAt(i).Material;
+                    SetupLightmapping(context, ecb, entity, meshRenderRef, lightmapStRef, lightmapIndexRef, ref extraMaterialRef);
                 }
-
-                RenderMesh newRenderMesh = renderMesh;
-                newRenderMesh.materials = newMaterials;
-
-                ecb.SetSharedComponentManaged(entity, newRenderMesh);
             }
 
             context.EndConversion();
-
             ecb.Playback(state.EntityManager);
-            ecb.Dispose();
+        }
+
+        static void SetupLightmapping(RenderMeshBakingContext context,
+            EntityCommandBuffer ecb,
+            Entity entity,
+            RefRO<MeshRendererBakingData> meshRenderRef,
+            RefRW<BuiltinMaterialPropertyUnity_LightmapST> lightmapStRef,
+            RefRW<BuiltinMaterialPropertyUnity_LightmapIndex> lightmapIndexRef,
+            ref UnityObjectRef<Material> materialRef)
+        {
+            // Check if valid material
+            if (materialRef.Id.instanceId == default)
+                return;
+
+            // Get lightmap if any
+            Renderer renderer = meshRenderRef.ValueRO.MeshRenderer;
+            lightmapStRef.ValueRW.Value = renderer.lightmapScaleOffset;
+            var (lightmappedMaterial, lightMaps) = context.GetHybridLightMapping(ref lightmapIndexRef.ValueRW, renderer.lightmapIndex, materialRef);
+
+            // if so, add it to the entity
+            if (lightmappedMaterial.Id.instanceId != 0)
+            {
+                ecb.SetSharedComponent(entity, lightMaps);
+                materialRef = lightmappedMaterial;
+            }
         }
     }
+
 
 
     // RenderMeshPostprocessSystem combines RenderMesh components from all found entities
@@ -153,26 +228,41 @@ namespace Unity.Rendering
     [UpdateAfter(typeof(MeshRendererBaking))]
     partial struct RenderMeshPostProcessSystem : ISystem
     {
-
-#if ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
-        const bool EnableSubMeshDataSharing = true;
-#else
-        const bool EnableSubMeshDataSharing = false;
-#endif
-
-        struct RenderMeshConversionInfo
+        struct SubMeshKey : IEquatable<SubMeshKey>
         {
-            // Set if UseIndexRange is true
-            public int MaterialMeshIndexRangeStart;
-            public int MaterialMeshIndexRangeLength;
+            public UnityObjectRef<Mesh> Mesh;
+            public SubMeshIndexInfo32 SubmeshInfo;
+            public UnityObjectRef<Material> MaterialForSubmesh;
+            public DynamicBuffer<MeshRendererBakingUtility.MaterialReferenceElement> ExtraMaterials;
 
-            // Set if UseIndexRange is false
-            public int MaterialIndex;
-            public int MeshIndex;
+            public bool Equals(SubMeshKey other) => Mesh.Equals(other.Mesh)
+                && SubmeshInfo.Equals(other.SubmeshInfo)
+                && MaterialForSubmesh.Equals(other.MaterialForSubmesh)
+                && SequenceEquals(ExtraMaterials, other.ExtraMaterials);
 
-            public int RenderMeshSubMeshIndex; // Needed for skinning even when UseIndexRange is true
-            public string ErrorMessage;
-            public bool UseIndexRange;
+            public override int GetHashCode() => Mesh.GetHashCode()
+                ^ SubmeshInfo.GetHashCode()
+                ^ MaterialForSubmesh.GetHashCode()
+                ^ GetSequenceHashCode(ExtraMaterials);
+
+            static bool SequenceEquals(DynamicBuffer<MeshRendererBakingUtility.MaterialReferenceElement> a, DynamicBuffer<MeshRendererBakingUtility.MaterialReferenceElement> b)
+            {
+                if (a.Length != b.Length)
+                    return false;
+
+                for (int i = 0; i < a.Length; i++)
+                {
+                    if (!a[i].Material.Equals(b[i].Material))
+                        return false;
+                }
+
+                return true;
+            }
+
+            static unsafe int GetSequenceHashCode(DynamicBuffer<MeshRendererBakingUtility.MaterialReferenceElement> buffer)
+            {
+                return (int)XXHash.Hash32((byte*)buffer.GetUnsafePtr(), buffer.Length * UnsafeUtility.SizeOf<MeshRendererBakingUtility.MaterialReferenceElement>());
+            }
         }
 
         EntityQuery m_BakedEntities;
@@ -182,12 +272,12 @@ namespace Unity.Rendering
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            m_BakedEntities = new EntityQueryBuilder(Allocator.Temp)
+            m_BakedEntities = new EntityQueryBuilder(state.WorldUpdateAllocator)
                 .WithAny<MeshRendererBakingData, SkinnedMeshRendererBakingData>()
                 .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
                 .Build(ref state);
-            m_RenderMeshEntities = new EntityQueryBuilder(Allocator.Temp)
-                .WithAll<RenderMesh, MaterialMeshInfo>()
+            m_RenderMeshEntities = new EntityQueryBuilder(state.WorldUpdateAllocator)
+                .WithAll<RenderMeshUnmanaged, MaterialMeshInfo>()
                 .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IgnoreComponentEnabledState)
                 .Build(ref state);
 
@@ -195,241 +285,94 @@ namespace Unity.Rendering
         }
 
         /// <inheritdoc/>
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            RenderMesh[] renderMeshes;
-            int[] renderMeshIndices;
-            GetAllRenderMeshes(state.EntityManager, out renderMeshes, out renderMeshIndices);
+            var renderMeshCount = m_RenderMeshEntities.CalculateEntityCount();
+            using var meshToIndexMap = new NativeHashMap<UnityObjectRef<Mesh>, int>(renderMeshCount, state.WorldUpdateAllocator);
+            using var materialToIndexMap = new NativeHashMap<UnityObjectRef<Material>, int>(renderMeshCount, state.WorldUpdateAllocator);
+            using var uniqueMeshes = new NativeList<UnityObjectRef<Mesh>>(renderMeshCount, state.WorldUpdateAllocator);
+            using var uniqueMaterials = new NativeList<UnityObjectRef<Material>>(renderMeshCount, state.WorldUpdateAllocator);
 
-            Material[] uniqueMaterials;
-            Mesh[] uniqueMeshes;
-            ExtractUniqueMaterialAndMeshes(renderMeshes, out uniqueMaterials, out uniqueMeshes);
+            foreach (var (renderMeshRef, materialMeshInfoRef) in SystemAPI.Query<RefRO<RenderMeshUnmanaged>, RefRW<MaterialMeshInfo>>().WithNone<MeshRendererBakingUtility.MaterialReferenceElement>()
+                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IgnoreComponentEnabledState))
+            {
+                var renderMesh = renderMeshRef.ValueRO;
+
+                // Get mesh and material index
+                var materialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap, renderMesh.materialForSubMesh);
+                var meshIndex = GetUniqueIndex(uniqueMeshes, meshToIndexMap, renderMesh.mesh);
+
+                materialMeshInfoRef.ValueRW = MaterialMeshInfo.FromRenderMeshArrayIndices(materialIndex, meshIndex, renderMesh.subMeshInfo.SubMesh);
+            }
+
+
+#if ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
+            using var materialMeshIndices = new NativeList<MaterialMeshIndex>(renderMeshCount, state.WorldUpdateAllocator);
+            using var subMeshKeyToMaterialInfo = new NativeHashMap<SubMeshKey, MaterialMeshInfo>(renderMeshCount, state.WorldUpdateAllocator);
+
+            foreach (var (renderMeshRef, materialMeshInfoRef, extraMaterials) in SystemAPI.Query<RefRO<RenderMeshUnmanaged>, RefRW<MaterialMeshInfo>, DynamicBuffer<MeshRendererBakingUtility.MaterialReferenceElement>>()
+                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IgnoreComponentEnabledState))
+            {
+                var renderMesh = renderMeshRef.ValueRO;
+
+                var subMeshKey = new SubMeshKey
+                {
+                    Mesh = renderMesh.mesh,
+                    SubmeshInfo = renderMesh.subMeshInfo,
+                    MaterialForSubmesh = renderMesh.materialForSubMesh,
+                    ExtraMaterials = extraMaterials
+                };
+
+                if (!subMeshKeyToMaterialInfo.TryGetValue(subMeshKey, out var materialMeshInfo))
+                {
+                    // Get mesh and material index
+                    var meshIndex = GetUniqueIndex(uniqueMeshes, meshToIndexMap, renderMesh.mesh);
+                    materialMeshInfo = MaterialMeshInfo.FromMaterialMeshIndexRange(materialMeshIndices.Length, extraMaterials.Length + 1);
+                    subMeshKeyToMaterialInfo.Add(subMeshKey, materialMeshInfo);
+
+                    materialMeshIndices.Add(new MaterialMeshIndex
+                    {
+                        MeshIndex = meshIndex,
+                        MaterialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap, renderMesh.materialForSubMesh),
+                        SubMeshIndex = 0
+                    });
+
+                    for (sbyte i = 0; i < extraMaterials.Length; i++)
+                    {
+                        materialMeshIndices.Add(new MaterialMeshIndex
+                        {
+                            MeshIndex = meshIndex,
+                            MaterialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap, extraMaterials[i].Material),
+                            SubMeshIndex = i + 1
+                        });
+                    }
+                }
+
+                materialMeshInfoRef.ValueRW = materialMeshInfo;
+            }
+#else
+            using var materialMeshIndices = new NativeList<MaterialMeshIndex>(0, state.WorldUpdateAllocator);
+#endif
 
             if (uniqueMeshes.Length == 0 && uniqueMaterials.Length == 0)
                 return;
 
-            Dictionary<Material, int> materialToArrayIndex = BuildMaterialToIndexRemapTable(uniqueMaterials);
-            Dictionary<Mesh, int> meshToArrayIndex = BuildMeshToIndexRemapTable(uniqueMeshes);
-
-            var matMeshIndices = new List<MaterialMeshIndex>(renderMeshes.Length);
-            var renderMeshConversionInfoMap = new Dictionary<int, RenderMeshConversionInfo>(renderMeshes.Length);
-
-            for (int i = 0; i < renderMeshes.Length; i++)
-            {
-                RenderMesh renderMesh = renderMeshes[i];
-
-                int meshIndex = -1;
-                if (renderMesh.mesh != null && meshToArrayIndex.ContainsKey(renderMesh.mesh))
-                    meshIndex = meshToArrayIndex[renderMesh.mesh];
-
-                int submeshCount = renderMesh.materials.Count;
-                Assert.IsTrue(renderMesh.subMesh < submeshCount);
-
-                // Use MaterialMeshIndex array if there are multiple sub-meshes.
-                // Otherwise use the simple index version to keep the MaterialMeshIndex array smaller.
-                if (EnableSubMeshDataSharing && submeshCount > 1)
-                {
-                    int matMeshIndexRangeStart = matMeshIndices.Count;
-
-                    string errorMessage = "";
-                    for (int subMeshIndex = 0; subMeshIndex < submeshCount; subMeshIndex++)
-                    {
-                        Material material = renderMesh.materials[subMeshIndex];
-
-                        if (material == null)
-                            errorMessage += $"Material ({subMeshIndex}) is null. ";
-
-                        int materialIndex = -1;
-                        if (material != null && materialToArrayIndex.ContainsKey(material))
-                            materialIndex = materialToArrayIndex[material];
-
-                        MaterialMeshIndex matMeshIndex = default;
-                        matMeshIndex.MaterialIndex = materialIndex;
-                        matMeshIndex.MeshIndex = meshIndex;
-                        matMeshIndex.SubMeshIndex = subMeshIndex;
-
-                        matMeshIndices.Add(matMeshIndex);
-                    }
-
-                    renderMeshConversionInfoMap.Add(renderMeshIndices[i], new RenderMeshConversionInfo
-                    {
-                        UseIndexRange = true,
-                        MaterialMeshIndexRangeStart = matMeshIndexRangeStart,
-                        MaterialMeshIndexRangeLength = submeshCount,
-                        RenderMeshSubMeshIndex = renderMesh.subMesh, // Used for skinning even when using a MaterialMeshIndex range
-                        ErrorMessage = errorMessage,
-                    });
-                }
-                else
-                {
-                    Material material = renderMesh.material;
-
-                    string errorMessage = "";
-                    if (material == null)
-                        errorMessage += $"Material ({renderMesh.subMesh}) is null. ";
-
-                    int materialIndex = -1;
-                    if (material != null && materialToArrayIndex.ContainsKey(material))
-                        materialIndex = materialToArrayIndex[material];
-
-                    renderMeshConversionInfoMap.Add(renderMeshIndices[i], new RenderMeshConversionInfo
-                    {
-                        UseIndexRange = false,
-                        MeshIndex = meshIndex,
-                        MaterialIndex = materialIndex,
-                        RenderMeshSubMeshIndex = renderMesh.subMesh,
-                        ErrorMessage = errorMessage,
-                    });
-                }
-            }
-
-            var renderMeshArray = new RenderMeshArray(uniqueMaterials, uniqueMeshes, matMeshIndices.ToArray());
-            state.EntityManager.AddSharedComponentManaged(m_RenderMeshEntities, renderMeshArray);
-            var entities = m_RenderMeshEntities.ToEntityArray(Allocator.Temp);
-
-            for (int i = 0; i < entities.Length; ++i)
-            {
-                var entity = entities[i];
-                int renderMeshComponentIndex = state.EntityManager.GetSharedComponentIndexManaged<RenderMesh>(entity);
-
-                RenderMeshConversionInfo conversionInfo = renderMeshConversionInfoMap[renderMeshComponentIndex];
-
-                if (!string.IsNullOrEmpty(conversionInfo.ErrorMessage))
-                    LogRenderMeshConversionWarningOnEntity(state.EntityManager, entity, conversionInfo.ErrorMessage);
-
-                bool isSkinnedEntity = state.EntityManager.HasComponent<SkinnedMeshRendererBakingData>(entity);
-
-                MaterialMeshInfo materialMeshInfo = default;
-
-                if (!conversionInfo.UseIndexRange || isSkinnedEntity)
-                {
-                    MaterialMeshIndex matMeshIndex = default;
-
-                    if (conversionInfo.UseIndexRange)
-                    {
-                        Assert.IsTrue(conversionInfo.RenderMeshSubMeshIndex < conversionInfo.MaterialMeshIndexRangeLength);
-                        matMeshIndex = matMeshIndices[conversionInfo.MaterialMeshIndexRangeStart + conversionInfo.RenderMeshSubMeshIndex];
-                    }
-                    else
-                    {
-                        matMeshIndex.MaterialIndex = conversionInfo.MaterialIndex;
-                        matMeshIndex.MeshIndex = conversionInfo.MeshIndex;
-                        matMeshIndex.SubMeshIndex = conversionInfo.RenderMeshSubMeshIndex;
-                    }
-
-                    if (matMeshIndex.MaterialIndex != -1)
-                        materialMeshInfo.MaterialArrayIndex = matMeshIndex.MaterialIndex;
-
-                    if (matMeshIndex.MeshIndex != -1)
-                        materialMeshInfo.MeshArrayIndex = matMeshIndex.MeshIndex;
-
-                    materialMeshInfo.SubMesh = (sbyte)matMeshIndex.SubMeshIndex;
-                }
-                else
-                {
-                    materialMeshInfo = MaterialMeshInfo.FromMaterialMeshIndexRange(
-                        conversionInfo.MaterialMeshIndexRangeStart,
-                        conversionInfo.MaterialMeshIndexRangeLength);
-                }
-
-                state.EntityManager.SetComponentData(entity, materialMeshInfo);
-            }
+            CallFromBurstRenderMeshArrayHelper.AddRenderMeshArrayTo(state.EntityManager, m_RenderMeshEntities,
+                uniqueMaterials.AsArray(),
+                uniqueMeshes.AsArray(),
+                materialMeshIndices.AsArray());
         }
 
-        static void GetAllRenderMeshes(EntityManager entityManager, out RenderMesh[] renderMeshes, out int[] renderMeshIndices)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static int GetUniqueIndex<T>(NativeList<UnityObjectRef<T>> uniqueElems, NativeHashMap<UnityObjectRef<T>, int> elemToIndexMap, UnityObjectRef<T> elem) where T : UnityEngine.Object
         {
-            int countUpperBound = entityManager.GetSharedComponentCount();
-
-            var renderMeshesList = new List<RenderMesh>(countUpperBound);
-            var renderMeshIndicesList = new List<int>(countUpperBound);
-            entityManager.GetAllUniqueSharedComponentsManaged(renderMeshesList, renderMeshIndicesList);
-
-            // Remove null component automatically added by GetAllUniqueSharedComponentData
-            renderMeshesList.RemoveAt(0);
-            renderMeshIndicesList.RemoveAt(0);
-
-            renderMeshes = renderMeshesList.ToArray();
-            renderMeshIndices = renderMeshIndicesList.ToArray();
-        }
-
-        static void ExtractUniqueMaterialAndMeshes(RenderMesh[] renderMeshes, out Material[] uniqueMaterials, out Mesh[] uniqueMeshes)
-        {
-            var meshes = new Dictionary<Mesh, bool>(renderMeshes.Length);
-            var materials = new Dictionary<Material, bool>(renderMeshes.Length);
-
-            for (int i = 0; i < renderMeshes.Length; i++)
-            {
-                RenderMesh renderMesh = renderMeshes[i];
-
-                // Those case should have been already handled by MeshRendererBaker
-                Assert.IsTrue(renderMesh.mesh != null);
-                Assert.IsTrue(renderMesh.materials != null && renderMesh.materials.Count > 0);
-
-                if (renderMesh.materials != null)
-                {
-                    for (int submeshIndex = 0; submeshIndex < renderMesh.materials.Count; submeshIndex++)
-                    {
-                        Material material = renderMesh.materials[submeshIndex];
-                        if (material != null)
-                            materials[material] = true;
-                    }
-                }
-
-                if (renderMesh.mesh != null)
-                    meshes[renderMesh.mesh] = true;
-            }
-
-            uniqueMeshes = meshes.Keys.ToArray();
-            uniqueMaterials = materials.Keys.ToArray();
-        }
-
-        static Dictionary<Mesh, int> BuildMeshToIndexRemapTable(Mesh[] meshes)
-        {
-            var remapTable = new Dictionary<Mesh, int>(meshes.Length);
-
-            for (int i = 0; i < meshes.Length; ++i)
-            {
-                Mesh mesh = meshes[i];
-                Assert.IsTrue(mesh != null);
-
-                remapTable.Add(mesh, i);
-            }
-
-            return remapTable;
-        }
-
-        static Dictionary<Material, int> BuildMaterialToIndexRemapTable(Material[] materials)
-        {
-            var remapTable = new Dictionary<Material, int>(materials.Length);
-
-            for (int i = 0; i < materials.Length; ++i)
-            {
-                Material material = materials[i];
-                Assert.IsTrue(material != null);
-
-                remapTable.Add(material, i);
-            }
-
-            return remapTable;
-        }
-
-        static void LogRenderMeshConversionWarningOnEntity(EntityManager entityManager, Entity entity, string errorMessage)
-        {
-            Renderer authoring = null;
-            if (entityManager.HasComponent<MeshRendererBakingData>(entity))
-                authoring = entityManager.GetComponentData<MeshRendererBakingData>(entity).MeshRenderer.Value;
-            else if (entityManager.HasComponent<SkinnedMeshRendererBakingData>(entity))
-                authoring = entityManager.GetComponentData<SkinnedMeshRendererBakingData>(entity).SkinnedMeshRenderer.Value;
-
-            string entityDebugString = authoring is null
-                ? entity.ToString()
-                : authoring.ToString();
-
-            // Use authoring as a context object in the warning message, so clicking the warning selects
-            // the corresponding authoring GameObject.
-            Debug.LogWarning(
-                $"Entity \"{entityDebugString}\" has invalid Meshes or Materials, and will not render correctly at runtime. {errorMessage}",
-                authoring);
+            var elemIndex = uniqueElems.Length;
+            if (elemToIndexMap.TryAdd(elem, uniqueElems.Length))
+                uniqueElems.Add(elem);
+            else
+                elemIndex = elemToIndexMap[elem];
+            return elemIndex;
         }
     }
 }

@@ -52,7 +52,8 @@ namespace Unity.Rendering
             var root = authoring.rootBone ? GetComponent<Transform>(authoring.rootBone) : GetComponent<Transform>(authoring);
 
             var mesh = authoring.sharedMesh;
-            MeshRendererBakingUtility.ConvertToMultipleEntities(this, authoring, mesh, materials, root, out var additionalEntities);
+            MeshRendererBakingUtility.ConvertToMultipleEntities(this, authoring, mesh, root, out var additionalEntities);
+            UnityEngine.Debug.Assert(additionalEntities.IsCreated);
 
             var hasSkinning = mesh == null ? false : mesh.boneWeights.Length > 0 && mesh.bindposeCount > 0;
             var hasBlendShapes = mesh == null ? false : mesh.blendShapeCount > 0;
@@ -68,6 +69,8 @@ namespace Unity.Rendering
                AddComponent(entity, new SkinnedMeshRendererBakingData {SkinnedMeshRenderer = authoring});
                SetComponent(entity, new RenderBounds { Value = authoring.localBounds.ToAABB() });
             }
+
+            additionalEntities.Dispose();
 
             // Fill the blend shape weights.
             if (hasBlendShapes)
