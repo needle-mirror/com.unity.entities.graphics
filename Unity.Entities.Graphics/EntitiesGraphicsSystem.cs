@@ -542,7 +542,7 @@ namespace Unity.Rendering
                         var id = m_RendererSystem.RegisterMaterial(material);
                         if (id == BatchMaterialID.Null)
                         {
-                            Debug.LogWarning($"Registering material {(material != null ? material.Value.ToString() : "null")} at index {i} inside a RenderMeshArray failed.");
+                            Debug.LogWarning($"Registering material {(material ? material.Value.ToString() : "null")} at index {i} inside a RenderMeshArray failed.");
                         }
 
                         brgRenderArray.UniqueMaterials.Add(id);
@@ -553,7 +553,7 @@ namespace Unity.Rendering
                         var mesh = renderArray.MeshesInternal[i];
                         var id = m_RendererSystem.RegisterMesh(mesh);
                         if (id == BatchMeshID.Null)
-                            Debug.LogWarning($"Registering mesh {(mesh != null ? mesh.Value.ToString() : "null")} at index {i} inside a RenderMeshArray failed.");
+                            Debug.LogWarning($"Registering mesh {(mesh ? mesh.Value.ToString() : "null")} at index {i} inside a RenderMeshArray failed.");
 
                         brgRenderArray.UniqueMeshes.Add(id);
                     }
@@ -1835,7 +1835,12 @@ namespace Unity.Rendering
             Profiler.EndSample();
 
             var numNewChunksArray = new NativeArray<int>(1, Allocator.TempJob);
-            int totalChunks = m_EntitiesGraphicsRenderedQuery.CalculateChunkCountWithoutFiltering();
+            int totalChunksWithNormalQuery = m_EntitiesGraphicsRenderedQuery.CalculateChunkCountWithoutFiltering();
+            // One meta-entity = one chunk of normal entities, so use CalculateEntityCount
+            int totalChunksWithMetaEntityQuery = m_MetaEntitiesForHybridRenderableChunksQuery.CalculateEntityCountWithoutFiltering();
+            // For some reason, the counts returned by these queries may not always match in edge cases.
+            // Use the larger of the two counts to ensure we never run out of space.
+            int totalChunks = math.max(totalChunksWithNormalQuery, totalChunksWithMetaEntityQuery);
             var newChunks = new NativeArray<ArchetypeChunk>(
                 totalChunks,
                 Allocator.TempJob,

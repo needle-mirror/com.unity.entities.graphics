@@ -4,9 +4,19 @@ uid: changelog
 
 # Changelog
 
+## [1.2.0] - 2024-03-22
+
+### Changed
+
+* fixed the issue with LOD objects being culled when the camera is static
+
+### Fixed
+
+* Entities Graphics should now never run out of space in the NewChunks buffer.
+* A null reference exception thrown in some cases when using MeshRenderers with missing materials and/or meshes
+
 
 ## [1.2.0-pre.12] - 2024-02-13
-
 
 ### Added
 

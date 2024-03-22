@@ -141,91 +141,85 @@ namespace Unity.Rendering
                     int diff = (int)chunkCullingData.MovementGraceFixed16 - CameraMoveDistanceFixed16;
                     chunkCullingData.MovementGraceFixed16 = (ushort)math.max(0, diff);
 
-                    var graceExpired = chunkCullingData.MovementGraceFixed16 == 0;
-                    var forceLodChanged = forceLowLOD != chunkCullingData.ForceLowLODPrevious;
-
-                    if (graceExpired || forceLodChanged || DistanceScaleChanged)
-                    {
-                        chunkEntityLodEnabled.Enabled[0] = 0;
-                        chunkEntityLodEnabled.Enabled[1] = 0;
+                    chunkEntityLodEnabled.Enabled[0] = 0;
+                    chunkEntityLodEnabled.Enabled[1] = 0;
 
 #if UNITY_EDITOR
-                        stats.LodChunksTested++;
+                    stats.LodChunksTested++;
 #endif
-                        var chunk = chunkHeader.ArchetypeChunk;
+                    var chunk = chunkHeader.ArchetypeChunk;
 
-                        var rootLODRanges = chunk.GetNativeArray(ref RootLODRanges);
-                        var rootLODReferencePoints = chunk.GetNativeArray(ref RootLODReferencePoints);
-                        var lodRanges = chunk.GetNativeArray(ref LODRanges);
-                        var lodReferencePoints = chunk.GetNativeArray(ref LODReferencePoints);
+                    var rootLODRanges = chunk.GetNativeArray(ref RootLODRanges);
+                    var rootLODReferencePoints = chunk.GetNativeArray(ref RootLODReferencePoints);
+                    var lodRanges = chunk.GetNativeArray(ref LODRanges);
+                    var lodReferencePoints = chunk.GetNativeArray(ref LODReferencePoints);
 
-                        float graceDistance = float.MaxValue;
+                    float graceDistance = float.MaxValue;
 
-                        for (int i = 0; i < chunkInstanceCount; i++)
+                    for (int i = 0; i < chunkInstanceCount; i++)
+                    {
+                        var rootLODRange = rootLODRanges[i];
+                        var rootLODReferencePoint = rootLODReferencePoints[i];
+
+                        var rootLodDistance =
+                            math.select(
+                                DistanceScale *
+                                math.length(LODParams.cameraPos - rootLODReferencePoint.Value),
+                                DistanceScale, isOrtho);
+
+                        float rootMinDist = math.select(rootLODRange.LOD.MinDist, 0.0f, forceLowLOD == 1);
+                        float rootMaxDist = rootLODRange.LOD.MaxDist;
+
+                        graceDistance = math.min(math.abs(rootLodDistance - rootMinDist), graceDistance);
+                        graceDistance = math.min(math.abs(rootLodDistance - rootMaxDist), graceDistance);
+
+                        var rootLodIntersect = (rootLodDistance < rootMaxDist) && (rootLodDistance >= rootMinDist);
+
+                        if (rootLodIntersect)
                         {
-                            var rootLODRange = rootLODRanges[i];
-                            var rootLODReferencePoint = rootLODReferencePoints[i];
+                            var lodRange = lodRanges[i];
+                            if (lodRange.LODMask < MaximumLODLevelMask)
+                            {
+                                continue;
+                            }
+                            if (lodRange.LODMask == MaximumLODLevelMask)
+                            {
+                                    // Expand maximum LOD range to cover all higher LODs
+                                lodRange.MinDist = 0.0f;
+                            }
+                            var lodReferencePoint = lodReferencePoints[i];
 
-                            var rootLodDistance =
+                            var instanceDistance =
                                 math.select(
                                     DistanceScale *
-                                    math.length(LODParams.cameraPos - rootLODReferencePoint.Value),
-                                    DistanceScale, isOrtho);
-
-                            float rootMinDist = math.select(rootLODRange.LOD.MinDist, 0.0f, forceLowLOD == 1);
-                            float rootMaxDist = rootLODRange.LOD.MaxDist;
-
-                            graceDistance = math.min(math.abs(rootLodDistance - rootMinDist), graceDistance);
-                            graceDistance = math.min(math.abs(rootLodDistance - rootMaxDist), graceDistance);
-
-                            var rootLodIntersect = (rootLodDistance < rootMaxDist) && (rootLodDistance >= rootMinDist);
-
-                            if (rootLodIntersect)
-                            {
-                                var lodRange = lodRanges[i];
-                                if (lodRange.LODMask < MaximumLODLevelMask)
-                                {
-                                    continue;
-                                }
-                                if (lodRange.LODMask == MaximumLODLevelMask)
-                                {
-                                    // Expand maximum LOD range to cover all higher LODs
-                                    lodRange.MinDist = 0.0f;
-                                }
-                                var lodReferencePoint = lodReferencePoints[i];
-
-                                var instanceDistance =
-                                    math.select(
-                                        DistanceScale *
-                                        math.length(LODParams.cameraPos -
-                                            lodReferencePoint.Value), DistanceScale,
+                                    math.length(LODParams.cameraPos - lodReferencePoint.Value), DistanceScale,
                                         isOrtho);
 
-                                var instanceLodIntersect =
-                                    (instanceDistance < lodRange.MaxDist) &&
-                                    (instanceDistance >= lodRange.MinDist);
+                            var instanceLodIntersect =
+                                (instanceDistance < lodRange.MaxDist) &&
+                                (instanceDistance >= lodRange.MinDist);
 
-                                graceDistance = math.min(math.abs(instanceDistance - lodRange.MinDist),
-                                    graceDistance);
-                                graceDistance = math.min(math.abs(instanceDistance - lodRange.MaxDist),
-                                    graceDistance);
+                            graceDistance = math.min(math.abs(instanceDistance - lodRange.MinDist),
+                                graceDistance);
+                            graceDistance = math.min(math.abs(instanceDistance - lodRange.MaxDist),
+                                graceDistance);
 
-                                if (instanceLodIntersect)
-                                {
-                                    var index = i;
-                                    var wordIndex = index >> 6;
-                                    var bitIndex = index & 0x3f;
-                                    var lodWord = chunkEntityLodEnabled.Enabled[wordIndex];
+                            if (instanceLodIntersect)
+                            {
+                                var index = i;
+                                var wordIndex = index >> 6;
+                                var bitIndex = index & 0x3f;
+                                var lodWord = chunkEntityLodEnabled.Enabled[wordIndex];
 
-                                    lodWord |= 1UL << bitIndex;
-                                    chunkEntityLodEnabled.Enabled[wordIndex] = lodWord;
-                                }
+                                lodWord |= 1UL << bitIndex;
+                                chunkEntityLodEnabled.Enabled[wordIndex] = lodWord;
                             }
                         }
-
-                        chunkCullingData.MovementGraceFixed16 = Fixed16CamDistance.FromFloatFloor(graceDistance);
-                        chunkCullingData.ForceLowLODPrevious = forceLowLOD;
                     }
+
+                    chunkCullingData.MovementGraceFixed16 = Fixed16CamDistance.FromFloatFloor(graceDistance);
+                    chunkCullingData.ForceLowLODPrevious = forceLowLOD;
+
                 }
 
 
