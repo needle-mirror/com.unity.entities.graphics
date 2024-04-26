@@ -49,6 +49,7 @@ namespace Unity.Rendering
             {
                 All = new[]
                 {
+                    ComponentType.ChunkComponentReadOnly<EntitiesGraphicsChunkInfo>(),
                     ComponentType.ReadOnly<DisableRendering>(),
                 },
             });

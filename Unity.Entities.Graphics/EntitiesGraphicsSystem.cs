@@ -438,7 +438,7 @@ namespace Unity.Rendering
             for (int i = renderArrays.Count - 1; i >= 0; --i)
             {
                 var array = renderArrays[i];
-                if (array.Materials == null || array.Meshes == null)
+                if (array.MaterialReferences == null || array.MeshReferences == null)
                 {
                     discardedIndices.Add(i);
                 }
@@ -488,7 +488,7 @@ namespace Unity.Rendering
             for (int ri = 0; ri < renderArrays.Count; ++ri)
             {
                 var renderArray = renderArrays[ri];
-                if (renderArray.Materials == null || renderArray.Meshes == null)
+                if (renderArray.MaterialReferences == null || renderArray.MeshReferences == null)
                 {
                     Debug.LogError("This loop should not process null RenderMeshArray components");
                     continue;
@@ -496,8 +496,8 @@ namespace Unity.Rendering
 
                 var sharedIndex = sharedIndices[ri];
                 var sharedVersion = sharedVersions[ri];
-                var materialCount = renderArray.Materials.Length;
-                var meshCount = renderArray.Meshes.Length;
+                var materialCount = renderArray.MaterialReferences.Length;
+                var meshCount = renderArray.MeshReferences.Length;
                 var matMeshIndexCount = renderArray.MaterialMeshIndices != null ? renderArray.MaterialMeshIndices.Length : 0;
                 uint4 hash128 = renderArray.GetHash128();
 
@@ -538,7 +538,7 @@ namespace Unity.Rendering
 
                     for (int i = 0; i < materialCount; ++i)
                     {
-                        var material = renderArray.MaterialsInternal[i];
+                        var material = renderArray.MaterialReferences[i];
                         var id = m_RendererSystem.RegisterMaterial(material);
                         if (id == BatchMaterialID.Null)
                         {
@@ -550,7 +550,7 @@ namespace Unity.Rendering
 
                     for (int i = 0; i < meshCount; ++i)
                     {
-                        var mesh = renderArray.MeshesInternal[i];
+                        var mesh = renderArray.MeshReferences[i];
                         var id = m_RendererSystem.RegisterMesh(mesh);
                         if (id == BatchMeshID.Null)
                             Debug.LogWarning($"Registering mesh {(mesh ? mesh.Value.ToString() : "null")} at index {i} inside a RenderMeshArray failed.");
@@ -633,8 +633,8 @@ namespace Unity.Rendering
                     ? e.ToString()
                     : authoring.ToString();
 
-                int numMeshes = rma.Meshes?.Length ?? 0;
-                int numMaterials = rma.Materials?.Length ?? 0;
+                int numMeshes = rma.MeshReferences?.Length ?? 0;
+                int numMaterials = rma.MaterialReferences?.Length ?? 0;
                 int numMatMeshIndex = rma.MaterialMeshIndices?.Length ?? 0;
 
                 if (mmi.HasMaterialMeshIndexRange)

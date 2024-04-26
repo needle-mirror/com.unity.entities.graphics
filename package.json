@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "unity": "2022.3",
   "unityRelease": "11f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.2.0",
+    "com.unity.entities": "1.2.1",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.9"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Changed\n\n* fixed the issue with LOD objects being culled when the camera is static\n\n### Fixed\n\n* Entities Graphics should now never run out of space in the NewChunks buffer.\n* A null reference exception thrown in some cases when using MeshRenderers with missing materials and/or meshes"
+    "changelog": "### Added\n\n* MaterialReferences and MesheReferences have been provided as non allocating replacements for Materials and Meshes\n\n### Changed\n* Updated entities packages dependencies\n\n\n### Deprecated\n\n* RenderMeshArray.Materials is now obsolete, in favor of RenderMeshArray.MaterialReferences\n* RenderMeshArray.Meshes is now obsolete, in favor of RenderMeshArray.MeshReferences\n* Deprecated Materials and Meshes from RenderMeshArray as they now allocate.\n\n### Removed\n\n\n### Fixed\n\n* Resolved a performance issue in UpdateHybridChunksStructure\n* Fixed an allocation in RegisterMaterialsAndMeshes\n\n### Security\n\n\n### Known Issues"
   },
   "upmCi": {
-    "footprint": "8c29b61b26490f1fa6cbfbe876e7bbde992f6711"
+    "footprint": "a82699c29cedddf992dcce1d6ae9e2c429483285"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.2/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "ea4236421d61011e37e71d22108c5e4e70cf71d7"
+    "revision": "6ecf7a215623cca37079c6f1a3e6f2f686c91721"
   }
 }

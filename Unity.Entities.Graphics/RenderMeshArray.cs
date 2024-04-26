@@ -326,7 +326,10 @@ namespace Unity.Rendering
             ResetHash128();
         }
 
-        internal UnityObjectRef<Mesh>[] MeshesInternal
+        /// <summary>
+        /// Accessor property for the mesh references array.
+        /// </summary>
+        public UnityObjectRef<Mesh>[] MeshReferences
         {
             get => m_Meshes;
             set
@@ -336,7 +339,10 @@ namespace Unity.Rendering
             }
         }
 
-        internal UnityObjectRef<Material>[] MaterialsInternal
+        /// <summary>
+        /// Accessor property for the material references array.
+        /// </summary>
+        public UnityObjectRef<Material>[] MaterialReferences
         {
             get => m_Materials;
             set
@@ -362,6 +368,7 @@ namespace Unity.Rendering
         /// <summary>
         /// Accessor property for the meshes array.
         /// </summary>
+        [Obsolete("Meshes has been deprecated; use MeshReferences instead.", false)]
         public Mesh[] Meshes
         {
             get
@@ -390,6 +397,7 @@ namespace Unity.Rendering
         /// <summary>
         /// Accessor property for the materials array.
         /// </summary>
+        [Obsolete("Materials has been deprecated; use MaterialReferences instead.", false)]
         public Material[] Materials
         {
             get
@@ -560,8 +568,8 @@ namespace Unity.Rendering
 
             foreach (var rma in renderMeshArrays)
             {
-                totalMeshes += rma.Meshes?.Length ?? 0;
-                totalMaterials += rma.Meshes?.Length ?? 0;
+                totalMeshes += rma.MeshReferences?.Length ?? 0;
+                totalMaterials += rma.MeshReferences?.Length ?? 0;
             }
 
             var meshes = new Dictionary<UnityObjectRef<Mesh>, bool>(totalMeshes);
@@ -569,15 +577,15 @@ namespace Unity.Rendering
 
             foreach (var rma in renderMeshArrays)
             {
-                foreach (var mesh in rma.Meshes)
+                foreach (var mesh in rma.MeshReferences)
                 {
-                    if (mesh != null)
+                    if (mesh.IsValid())
                         meshes[mesh] = true;
                 }
 
-                foreach (var material in rma.Materials)
+                foreach (var material in rma.MaterialReferences)
                 {
-                    if (material != null)
+                    if (material.IsValid())
                         materials[material] = true;
                 }
             }
@@ -644,11 +652,11 @@ namespace Unity.Rendering
                 Assert.IsTrue(range.length > 0);
 
                 int firstMaterialIndex = MaterialMeshIndices[range.start].MaterialIndex;
-                return Materials[firstMaterialIndex];
+                return MaterialReferences[firstMaterialIndex];
             }
             else
             {
-                return Materials[materialMeshInfo.MaterialArrayIndex];
+                return MaterialReferences[materialMeshInfo.MaterialArrayIndex];
             }
         }
 
@@ -672,14 +680,14 @@ namespace Unity.Rendering
                 for (int i = range.start; i < range.end; i++)
                 {
                     int materialIndex = MaterialMeshIndices[i].MaterialIndex;
-                    materials.Add(Materials[materialIndex]);
+                    materials.Add(MaterialReferences[materialIndex]);
                 }
 
                 return materials;
             }
             else
             {
-                var material = Materials[materialMeshInfo.MaterialArrayIndex];
+                var material = MaterialReferences[materialMeshInfo.MaterialArrayIndex];
                 return new List<Material> { material };
             }
         }
@@ -701,11 +709,11 @@ namespace Unity.Rendering
                 Assert.IsTrue(range.length > 0);
 
                 int firstMeshIndex = MaterialMeshIndices[range.start].MeshIndex;
-                return Meshes[firstMeshIndex];
+                return MeshReferences[firstMeshIndex];
             }
             else
             {
-                return Meshes[materialMeshInfo.MeshArrayIndex];
+                return MeshReferences[materialMeshInfo.MeshArrayIndex];
             }
         }
 
