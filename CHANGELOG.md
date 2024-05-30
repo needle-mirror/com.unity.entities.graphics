@@ -4,6 +4,12 @@ uid: changelog
 
 # Changelog
 
+## [1.2.3] - 2024-05-30
+
+### Changed
+* Updated entities packages dependencies
+
+
 ## [1.2.1] - 2024-04-26
 
 ### Added
@@ -13,27 +19,16 @@ uid: changelog
 ### Changed
 * Updated entities packages dependencies
 
-
 ### Deprecated
 
 * RenderMeshArray.Materials is now obsolete, in favor of RenderMeshArray.MaterialReferences
 * RenderMeshArray.Meshes is now obsolete, in favor of RenderMeshArray.MeshReferences
 * Deprecated Materials and Meshes from RenderMeshArray as they now allocate.
 
-### Removed
-
-
 ### Fixed
 
 * Resolved a performance issue in UpdateHybridChunksStructure
 * Fixed an allocation in RegisterMaterialsAndMeshes
-
-### Security
-
-
-### Known Issues
-
-
 
 
 ## [1.2.0] - 2024-03-22
