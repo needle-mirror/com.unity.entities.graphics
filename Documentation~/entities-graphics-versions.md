@@ -31,7 +31,6 @@ The following table compares Entities Graphics feature support between HDRP and 
 | **Sorted Transparencies**         | Yes                                         | Yes                                    |
 | **Color Space**                   | Only Linear color space is supported        | Only Linear color space is supported   |
 | **Rendering Path**                | Only Forward+ is supported                  | Yes                                    |
-| **Burst Occlusion culling**       | Experimental<br><br>Note: Must enable define and configure scene with occluders. See [Burst Occlusion Culling](burst-occlusion-culling.md).           | Experimental<br><br>Note: Must enable define and configure scene with occluders. See [Burst Occlusion Culling](burst-occlusion-culling.md). |
 | **Skinning & deformations**       | Experimental<br><br>Note: Must use Compute Deformation node in Shader Graph. See [Mesh Deformations](mesh_deformations.md).                            | Experimental<br><br>Note: Must use Compute Deformation node in Shader Graph. See [Mesh Deformations](mesh_deformations.md). |
 | **Texture Streaming**             | No                                          | No                                     |
 | **Streaming Virtual Texturing**   | N/A                                         | No                                     |

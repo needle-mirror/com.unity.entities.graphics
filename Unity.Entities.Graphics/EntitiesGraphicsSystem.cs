@@ -39,10 +39,6 @@
 #define DEBUG_PROPERTY_NAMES
 #endif
 
-#if ENABLE_UNITY_OCCLUSION
-#define USE_UNITY_OCCLUSION
-#endif
-
 #if UNITY_EDITOR && !DISABLE_HYBRID_RENDERER_PICKING
 #define ENABLE_PICKING
 #endif
@@ -77,10 +73,6 @@ using UnityEngine.Rendering.Universal;
 
 #if UNITY_EDITOR
 using UnityEditor;
-#endif
-
-#if USE_UNITY_OCCLUSION
-using Unity.Rendering.Occlusion;
 #endif
 
 namespace Unity.Rendering
@@ -465,7 +457,7 @@ namespace Unity.Rendering
             sortedKeys.Sort();
 
             // Single pass O(n) algorithm. Both arrays are guaranteed to be sorted.
-            for (int i = 0, j = 0; (i < sortedKeys.Length) && (j < renderArrays.Count); i++)
+            for (int i = 0, j = 0; i < sortedKeys.Length; i++)
             {
                 var oldKey = sortedKeys[i];
                 while ((j < renderArrays.Count) && (sharedIndices[j] < oldKey))
@@ -887,10 +879,6 @@ namespace Unity.Rendering
         internal static Dictionary<int, string> s_TypeIndexToName = new Dictionary<int, string>();
 #endif
 
-#if USE_UNITY_OCCLUSION
-        internal OcclusionCulling OcclusionCulling { get; private set; }
-#endif
-
         private bool m_FirstFrameAfterInit;
 
         private EntitiesGraphicsArchetypes m_GraphicsArchetypes;
@@ -1076,11 +1064,6 @@ namespace Unity.Rendering
             m_GPUPersistentInstanceBufferHandle = m_GPUPersistentInstanceData.bufferHandle;
 
             m_GPUUploader = new SparseUploader(m_GPUPersistentInstanceData, kGPUUploaderChunkSize);
-
-#if USE_UNITY_OCCLUSION
-            OcclusionCulling = new OcclusionCulling();
-            OcclusionCulling.Create(EntityManager);
-#endif
 
             m_ThreadLocalAllocators = new ThreadLocalAllocator(-1);
 
@@ -1421,10 +1404,6 @@ namespace Unity.Rendering
 
             m_SortedBatchIds = null;
 
-#if USE_UNITY_OCCLUSION
-            OcclusionCulling.Dispose();
-#endif
-
             m_GraphicsArchetypes.Dispose();
 
             m_FilterSettings.Dispose();
@@ -1595,15 +1574,6 @@ namespace Unity.Rendering
             var frustumCullingJobHandle = frustumCullingJob.ScheduleParallel(m_EntitiesGraphicsRenderedQueryRO, cullingDependency);
             var disposeFrustumCullingHandle = frustumCullingJob.IncludeExcludeListFilter.Dispose(frustumCullingJobHandle);
             DidScheduleCullingJob(frustumCullingJobHandle);
-
-#if USE_UNITY_OCCLUSION
-            var occlusionCullingDependency = OcclusionCulling.Cull(EntityManager, cullingContext, m_CullingJobDependency, visibilityItems
-#if UNITY_EDITOR
-                    , m_PerThreadStats
-#endif
-                    );
-            DidScheduleCullingJob(occlusionCullingDependency);
-#endif
 
             // TODO: Dynamically estimate this based on past frames
             int binCountEstimate = 1;

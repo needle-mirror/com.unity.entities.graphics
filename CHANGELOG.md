@@ -4,6 +4,17 @@ uid: changelog
 
 # Changelog
 
+## [1.3.0-exp.1] - 2024-06-11
+
+### Changed
+
+* Updated entities packages dependencies
+
+### Fixed
+
+* Fixed an issue with RegisterMaterialsAndMeshes
+
+
 ## [1.2.3] - 2024-05-30
 
 ### Changed
@@ -35,7 +46,7 @@ uid: changelog
 
 ### Changed
 
-* Fixed the issue with LOD objects being culled when the camera is static
+* fixed the issue with LOD objects being culled when the camera is static
 
 ### Fixed
 
@@ -44,7 +55,6 @@ uid: changelog
 
 
 ## [1.2.0-pre.12] - 2024-02-13
-
 
 ### Added
 
