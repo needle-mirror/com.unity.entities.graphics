@@ -85,7 +85,7 @@ namespace Unity.Rendering
         private int m_NumLightMappedMaterialCacheMisses;
 
         private Dictionary<LightMapKey, LightMapReference> m_LightMapArrayCache;
-        private Dictionary<MaterialLookupKey, UnityObjectRef<Material>> m_LightMappedMaterialCache = new ();
+        private Dictionary<MaterialLookupKey, Material> m_LightMappedMaterialCache = new ();
 
         private List<int> m_UsedLightmapIndices = new List<int>();
         private Dictionary<int, LightMapReference> m_LightMapReferences;
@@ -226,7 +226,7 @@ namespace Unity.Rendering
             }
         }
 
-        private static UnityObjectRef<Material> CreateLightMappedMaterial(UnityObjectRef<Material> material, LightMaps lightMaps)
+        private static Material CreateLightMappedMaterial(UnityObjectRef<Material> material, LightMaps lightMaps)
         {
             var lightMappedMaterial = new Material(material);
             lightMappedMaterial.name = $"{lightMappedMaterial.name}_Lightmapped_";

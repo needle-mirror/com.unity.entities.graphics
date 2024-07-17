@@ -4,6 +4,13 @@ uid: changelog
 
 # Changelog
 
+## [1.3.0-pre.4] - 2024-07-17
+
+### Fixed
+
+* Pink materials when causing a domain reload while a subscene is open with lightmapped materials.
+
+
 ## [1.3.0-exp.1] - 2024-06-11
 
 ### Changed
