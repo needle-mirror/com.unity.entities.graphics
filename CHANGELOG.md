@@ -4,6 +4,14 @@ uid: changelog
 
 # Changelog
 
+## [1.2.4] - 2024-08-14
+
+
+### Fixed
+* Pink materials when causing a domain reload while a subscene is open with lightmapped materials.
+* Fixed an issue with entities.graphics and Burst 1.8.12
+
+
 ## [1.2.3] - 2024-05-30
 
 ### Changed

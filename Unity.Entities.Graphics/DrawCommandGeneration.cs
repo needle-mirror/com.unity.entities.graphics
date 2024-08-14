@@ -271,7 +271,6 @@ namespace Unity.Rendering
     }
 
     [BurstCompile]
-    [NoAlias]
     internal unsafe struct DrawStream<T> where T : unmanaged
     {
         public const int kArraySizeElements = 16;
@@ -374,7 +373,6 @@ namespace Unity.Rendering
         //     UnsafeUtility.Free(header, allocator);
         // }
 
-        [return: NoAlias]
         public T* AppendElement(RewindableAllocator* allocator)
         {
             if (m_Count >= ElementsPerArray)

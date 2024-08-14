@@ -465,7 +465,7 @@ namespace Unity.Rendering
             sortedKeys.Sort();
 
             // Single pass O(n) algorithm. Both arrays are guaranteed to be sorted.
-            for (int i = 0, j = 0; (i < sortedKeys.Length) && (j < renderArrays.Count); i++)
+            for (int i = 0, j = 0; i < sortedKeys.Length; i++)
             {
                 var oldKey = sortedKeys[i];
                 while ((j < renderArrays.Count) && (sharedIndices[j] < oldKey))
