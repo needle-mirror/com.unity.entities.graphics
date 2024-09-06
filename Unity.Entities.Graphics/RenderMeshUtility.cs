@@ -1,4 +1,4 @@
-#if HDRP_10_0_0_OR_NEWER
+#if HDRP_10_0_0_OR_NEWER || URP_16_0_0_OR_NEWER
 #define USE_HYBRID_MOTION_PASS
 #endif
 
@@ -205,7 +205,7 @@ namespace Unity.Rendering
         internal static void AppendMotionAndProbeFlags(this ref EntitiesGraphicsComponentFlags flags, RenderMeshDescription renderMeshDescription, bool isStatic)
         {
             // Entities with Static are never rendered with motion vectors
-            if (k_UseHybridMotionPass && renderMeshDescription.FilterSettings.IsInMotionPass && !isStatic)
+            if (k_UseHybridMotionPass && renderMeshDescription.FilterSettings.IsInMotionPass && renderMeshDescription.FilterSettings.MotionMode == MotionVectorGenerationMode.Object && !isStatic)
                 flags |= EntitiesGraphicsComponentFlags.InMotionPass;
             flags |= LightProbeFlags(renderMeshDescription.LightProbeUsage);
         }

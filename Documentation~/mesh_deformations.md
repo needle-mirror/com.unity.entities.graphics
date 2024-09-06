@@ -19,7 +19,7 @@ To use mesh deformations in your Unity Project:
 
 Before you can use mesh deformations in your Unity project, you must set up your Unity Project to support this feature. To do this:
 
-1. Make sure your Unity Project uses the Entities Graphics package. For information on how to install packages, see the [Package Manager manual](https://docs.unity3d.com/Manual/upm-ui.html).
+1. Make sure your Unity Project uses the Entities Graphics package. For information on how to install Entities Graphics, refer to [Create a new project with Entities Graphics](creating-a-new-entities-graphics-project.html#create-a-new-project-with-entities-graphics).
 2. If you intend to use per-vertex motion vectors, go to Project Settings (menu: **Edit** > **Project Settings**) and, in the Player section, add `ENABLE_DOTS_DEFORMATION_MOTION_VECTORS` to **Scripting Define Symbols**. Unity currently only supports this when using the High Definition Render Pipeline. **Note**: To apply changes to the define, you must re-save any Shader Graphs.
 3. Create a Skinned Mesh Renderer with compatible materials using the [Mesh setup](#mesh-setup) and [Material setup](#material-setup) steps.
 
@@ -36,6 +36,7 @@ After you set up your project to support mesh deformations, you can create a mat
 2. Add the [Compute Deformation](https://docs.unity3d.com/Packages/com.unity.shadergraph@latest?subfolder=/manual/Compute-Deformation-Node.html) node to the Shader Graph.
 3. Connect the position, normal, and tangent outputs of the node to the vertex position, normal, and tangent slots in the master node respectively.
 4. Save the Shader Graph.
+5. Create a new material and assign the Shader Graph as its shader.
 
 ### Mesh setup
 
@@ -45,6 +46,15 @@ After you create a material that supports mesh deformations, you can set up a me
 2. Make sure that the mesh has blendshapes and/or a valid bind pose and skin weights. If Unity doesn't detect the appropriate data, it displays an error in the Skinned Mesh Renderer component Inspector.
 3. Assign the material you created in [Material setup](#material-setup) to all material slots on the Skinned Mesh Renderer.
 
+Place the GameObject or Prefab in a subscene to deform the Entities using mesh deformations.
+
+### Deform meshes using a script
+
+After you've set up a scene that uses Mesh Deformations, you can use custom scripts to create movement in the deformed entities. To do this, you can use an ECS System. 
+
+For example, in a [SystemBase](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Entities.SystemBase.html), you can use a Query to find components that may exist in your scene, such as the [Skin Matrix](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Deformations.SkinMatrix.html) or [Blend Shape](https://docs.unity3d.com/Packages/com.unity.entities@latest?subfolder=/api/Unity.Deformations.BlendShapeWeight.html) ECS component. Then, your system can modify the values of these component's properties to result in movement over time.
+
+For an example, refer to the scenes `SampleScenes/5. Deformation/MeshDeformations` and `SampleScenes/5. Deformation/SkinnedCharacter` in the `Assets` folder of [URPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/GraphicsSamples/URPSamples) and [HDRPSamples](https://github.com/Unity-Technologies/EntityComponentSystemSamples/tree/master/GraphicsSamples/HDRPSamples).
 
 ### Vertex shader skinning
 
@@ -73,7 +83,8 @@ Vertex shader skinning skins the mesh on the GPU in the vertex shader. To enable
 |                                        		    | **Skinned Mesh Renderer** | **Entities Graphics** |
 | ------------------------------------------------- | --------------------------| ----------------------|
 | Linear Blend Skinning 							| Supported 				| Supported |
-| Blend Shapes 										| Supported 				| Supported |
+| Blend Shapes 									| Supported 				| Supported |
+| Blend Shape Frames 								| Supported 				| --- |
 | Per Vertex Motion Vectors 						| [Supported](xref:UnityEngine.SkinnedMeshRenderer.skinnedMotionVectors) | Only in HDRP (With define) |
 | Optional normals & tangents 						| Supported 				| --- |
 | Resizeable render bounds based on animated pose 	| [Supported](xref:UnityEngine.SkinnedMeshRenderer.updateWhenOffscreen) | --- |
@@ -81,4 +92,3 @@ Vertex shader skinning skins the mesh on the GPU in the vertex shader. To enable
 | Cloth Simulation 									| Supported 				| --- |
 | Quality setting for limiting skin influences 		| Supported 				| --- |
 | CPU Deformations 									| [Supported](xref:UnityEditor.PlayerSettings.gpuSkinning) | --- |
-| Blend Shape Frames 								| Supported 				| --- |

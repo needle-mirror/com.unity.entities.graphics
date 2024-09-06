@@ -4,6 +4,17 @@ uid: changelog
 
 # Changelog
 
+
+## [1.3.2] - 2024-09-06
+
+### Changed
+* Updated entities packages dependencies
+
+### Fixed
+
+* Fixed an issue with entities.graphics and Burst 1.8.12
+
+
 ## [1.3.0-pre.4] - 2024-07-17
 
 ### Fixed
