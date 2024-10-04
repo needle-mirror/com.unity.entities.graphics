@@ -366,6 +366,7 @@ namespace Unity.Rendering
     {
         private List<GraphicsBuffer> m_Buffers;
         private Stack<int> m_FreeBufferIds;
+        private Stack<int> m_BuffersReleased;
 
         private int m_Count;
         private int m_Stride;
@@ -377,6 +378,7 @@ namespace Unity.Rendering
         {
             m_Buffers = new List<GraphicsBuffer>();
             m_FreeBufferIds = new Stack<int>();
+            m_BuffersReleased = new Stack<int>();
 
             m_Count = count;
             m_Stride = stride;
@@ -388,16 +390,29 @@ namespace Unity.Rendering
         {
             for (int i = 0; i < m_Buffers.Count; ++i)
             {
-                m_Buffers[i].Dispose();
+                if (m_Buffers[i].IsValid())
+                {
+                    m_Buffers[i].Dispose();
+                }
             }
         }
 
         private int AllocateBuffer()
         {
-            var id = m_Buffers.Count;
             var cb = new GraphicsBuffer(m_Target, m_UsageFlags, m_Count, m_Stride);
-            m_Buffers.Add(cb);
-            return id;
+            cb.name = "SparseUploaderBuffer";
+            if (m_BuffersReleased.Count > 0)
+            {
+                var id = m_BuffersReleased.Pop();
+                m_Buffers[id] = cb;
+                return id;
+            }
+            else
+            {
+                var id = m_Buffers.Count;
+                m_Buffers.Add(cb);
+                return id;
+            }
         }
 
         public int GetBufferId()
@@ -418,7 +433,26 @@ namespace Unity.Rendering
             m_FreeBufferIds.Push(id);
         }
 
-        public int TotalBufferCount => m_Buffers.Count;
+        /*
+         * Prune free buffers to allow up to maxMemoryToRetainInBytes to remain.
+         * Note that this will only release buffers that are marked free, so the actual memory retained might be higher than requested
+         */
+        public void PruneFreeBuffers(int maxMemoryToRetainInBytes)
+        {
+            int memoryToFree = TotalBufferSize - maxMemoryToRetainInBytes;
+            if (memoryToFree <= 0) return;
+
+            while (memoryToFree > 0 && m_FreeBufferIds.Count > 0)
+            {
+                var id = m_FreeBufferIds.Pop();
+                var buffer = GetBufferFromId(id);
+                buffer.Dispose();
+                m_BuffersReleased.Push(id);
+                memoryToFree -= m_Count * m_Stride;
+            }
+        }
+
+        public int TotalBufferCount => m_Buffers.Count - m_BuffersReleased.Count;
         public int TotalBufferSize => TotalBufferCount * m_Count * m_Stride;
     }
 
@@ -493,6 +527,9 @@ namespace Unity.Rendering
         int m_OperationsBaseID;
         int m_ReplaceOperationSize;
 
+        int m_RequestedUploadBufferPoolMaxSizeBytes;
+        bool m_PruneUploadBufferPool;
+
         /// <summary>
         /// Constructs a new sparse uploader with the specified buffer as the target.
         /// </summary>
@@ -526,6 +563,9 @@ namespace Unity.Rendering
 
             m_CurrentFrameUploadSize = 0;
             m_MaxUploadSize = 0;
+
+            m_RequestedUploadBufferPoolMaxSizeBytes = 0;
+            m_PruneUploadBufferPool = false;
         }
 
         /// <summary>
@@ -776,6 +816,16 @@ namespace Unity.Rendering
         }
 
         /// <summary>
+        /// Requests pruning of upload buffers. The actual release will happen in FrameCleanup.
+        /// </summary>
+        /// <param name="requestedMaxSizeRetainedInBytes">Maximum memory target to keep alive in upload buffer pool. Only buffers marked as free will be pruned, so the memory retained might be more than requested.</param>
+        public void PruneUploadBufferPoolOnFrameCleanup(int requestedMaxSizeRetainedInBytes)
+        {
+            m_RequestedUploadBufferPoolMaxSizeBytes = requestedMaxSizeRetainedInBytes;
+            m_PruneUploadBufferPool = true;
+        }
+
+        /// <summary>
         /// Cleans up internal data and recovers buffers into the free buffer pool.
         /// </summary>
         /// <remarks>
@@ -785,22 +835,28 @@ namespace Unity.Rendering
         {
             var numBuffers = m_ThreadData->m_NumBuffers;
 
-            if (numBuffers == 0)
-                return;
-
-            // These buffers where never used, so they gets returned to the pool at once
-            for (int iBuf = 0; iBuf < numBuffers; ++iBuf)
+            if (numBuffers > 0)
             {
-                var mappedBuffer = m_MappedBuffers[iBuf];
-                MappedBuffer.UnpackMarker(mappedBuffer.m_Marker, out var operationOffset, out var dataOffset);
-                var graphicsBufferID = mappedBuffer.m_BufferID;
-                var graphicsBuffer = m_UploadBufferPool.GetBufferFromId(graphicsBufferID);
+                // These buffers were never used, so they get returned to the pool at once
+                for (int iBuf = 0; iBuf < numBuffers; ++iBuf)
+                {
+                    var mappedBuffer = m_MappedBuffers[iBuf];
+                    MappedBuffer.UnpackMarker(mappedBuffer.m_Marker, out var operationOffset, out var dataOffset);
+                    var graphicsBufferID = mappedBuffer.m_BufferID;
+                    var graphicsBuffer = m_UploadBufferPool.GetBufferFromId(graphicsBufferID);
 
-                graphicsBuffer.UnlockBufferAfterWrite<byte>(0);
-                m_UploadBufferPool.PutBufferId(graphicsBufferID);
+                    graphicsBuffer.UnlockBufferAfterWrite<byte>(0);
+                    m_UploadBufferPool.PutBufferId(graphicsBufferID);
+                }
+
+                m_MappedBuffers.Dispose();
             }
 
-            m_MappedBuffers.Dispose();
+            if (m_PruneUploadBufferPool)
+            {
+                m_UploadBufferPool.PruneFreeBuffers(m_RequestedUploadBufferPoolMaxSizeBytes);
+                m_PruneUploadBufferPool = false;
+            }
 
             StepFrame();
         }

@@ -3,29 +3,29 @@
     {
       "ValidationTest": "API Updater Configuration Validation",
       "ExceptionMessage": "stdout:\nAPIUpdater Configuration Validation\n-----------------------------------\n\nConfiguration Validation Tests (Failed: 0, Total: 1, Ignored 0):\n----------------------------------------------------------------\n\n\nAuto Generated Tests (Failed: 1, Total: 1, Ignored 0):\n------------------------------------------------------\n1) Expected updates not applied for configuration:\n[*] System.SByte [*] Unity.Rendering.MaterialMeshInfo::Submesh -> * Unity.Rendering.MaterialMeshInfo::SubMesh\n\nInput   : unsafe class Test : object {  System.SByte Method(System.SByte memberValue, Unity.Rendering.MaterialMeshInfo obj)  {  System.SByte local = obj.Submesh; return Method(obj.Submesh, obj); } }\nExpected: unsafe class Test : object {  System.UInt16 Method(System.UInt16 memberValue, Unity.Rendering.MaterialMeshInfo obj)  {  System.UInt16 local = obj.SubMesh; return Method(obj.SubMesh, obj); } }\nActual  : unsafe class Test : object {  System.SByte Method(System.SByte memberValue, Unity.Rendering.MaterialMeshInfo obj)  {  System.SByte local = obj.SubMesh; return Method(obj.SubMesh, obj); } }\n\n\nBase type validation (Failed: 0, Total: 0, Ignored 0):\n------------------------------------------------------\nstderr:\n",
-      "PackageVersion": "1.3.2"
+      "PackageVersion": "1.4.2"
     },
     {
       "ValidationTest": "API Validation",
       "ExceptionMessage": "Breaking changes require a new major version.",
-      "PackageVersion": "1.3.2"
+      "PackageVersion": "1.4.2"
     }
   ],
   "WarningExceptions": [
     {
       "ValidationTest": "Manifest Validation",
       "ExceptionMessage": "Package dependency com.unity.entities@0.60.0-preview.88 must be promoted to production before this package is promoted to production. (Except for core packages)",
-      "PackageVersion": "1.3.2"
+      "PackageVersion": "1.4.2"
     },
     {
       "ValidationTest": "Folder Structure Validation",
       "ExceptionMessage": "The Resources Directory should not be used in packages.  For more guidance, please visit https://docs.unity3d.com/Manual/BestPracticeUnderstandingPerformanceInUnity6.html",
-      "PackageVersion": "1.3.2"
+      "PackageVersion": "1.4.2"
     },
     {
       "ValidationTest": "Package Lifecycle Validation",
       "ExceptionMessage": "com.unity.entities.graphics has never been promoted to production before. Please contact Release Management through slack in #devs-pkg-promotion to promote the first version of your package before trying to use this automated pipeline. Read more about this error and potential solutions at https://docs.unity3d.com/Packages/com.unity.package-validation-suite@latest/index.html?preview=1&subfolder=/manual/lifecycle_validation_error.html#the-very-first-version-of-a-package-must-be-promoted-by-release-management",
-      "PackageVersion": "1.3.2"
+      "PackageVersion": "1.4.2"
     }
   ]
 }

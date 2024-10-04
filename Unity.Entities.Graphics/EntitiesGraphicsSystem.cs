@@ -1193,6 +1193,16 @@ namespace Unity.Rendering
             }
         }
 
+
+        /// <summary>
+        /// Prune sparse uploader gpu buffer pool.
+        /// </summary>
+        /// <param name="maxMemoryToRetainInUploadPoolBytes">Maximum memory target to keep alive in upload buffer pool. Only buffers marked as free will be pruned, so the memory retained might be more than requested.</param>
+        public void PruneUploadBufferPool(int maxMemoryToRetainInUploadPoolBytes)
+        {
+            m_GPUUploader.PruneUploadBufferPoolOnFrameCleanup(maxMemoryToRetainInUploadPoolBytes);
+        }
+
         /// <summary>
         /// Called when this system is destroyed.
         /// </summary>
@@ -1596,6 +1606,7 @@ namespace Unity.Rendering
                 LocalToWorld = GetComponentTypeHandle<LocalToWorld>(true),
                 DepthSorted = GetComponentTypeHandle<DepthSorted_Tag>(true),
                 DeformedMeshIndex = GetComponentTypeHandle<DeformedMeshIndex>(true),
+                ProceduralMotion = GetComponentTypeHandle<PerVertexMotionVectors_Tag>(true),
                 RenderFilterSettings = GetSharedComponentTypeHandle<RenderFilterSettings>(),
                 FilterSettings = m_FilterSettings,
                 CullingLayerMask = cullingContext.cullingLayerMask,

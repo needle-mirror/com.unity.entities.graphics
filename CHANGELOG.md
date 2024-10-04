@@ -4,6 +4,24 @@ uid: changelog
 
 # Changelog
 
+## [1.4.2] - 2024-10-04
+
+### Changed
+
+* Updated Burst dependency to version 1.8.18
+* Updated entities packages dependencies
+
+### Added
+
+* The new `ProceduralMotion_Tag` tag component data type informs Entities Graphics that an Entity needs to participate in the object motion vector pass. The tag is automatically added for entities that go through the builtin MeshRendererBaker path.
+* Enable entities motion vector pass participation for URP.
+* PruneUploadBufferPool API to request pruning of the upload buffer pool.
+
+
+### Fixed
+
+* GameObjects that depend on vertex shader logic to generate procedural motion vectors through object motion vector passes will now also do the same when baked to Entities and rendered through Entities Graphics.
+
 
 ## [1.3.2] - 2024-09-06
 

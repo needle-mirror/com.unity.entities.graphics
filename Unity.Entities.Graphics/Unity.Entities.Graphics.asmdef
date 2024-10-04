@@ -37,6 +37,11 @@
             "define": "URP_10_0_0_OR_NEWER"
         },
         {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "15.9.9",
+            "define": "URP_16_0_0_OR_NEWER"
+        },
+        {
             "name": "com.unity.render-pipelines.core",
             "expression": "9.9.9",
             "define": "SRP_10_0_0_OR_NEWER"

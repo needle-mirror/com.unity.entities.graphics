@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.3.2",
+  "version": "1.4.2",
   "unity": "2022.3",
   "unityRelease": "11f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.3.2",
+    "com.unity.entities": "1.3.5",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.9"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Changed\n* Updated entities packages dependencies\n\n### Fixed\n\n* Fixed an issue with entities.graphics and Burst 1.8.12"
+    "changelog": "### Changed\n\n* Updated Burst dependency to version 1.8.18\n* Updated entities packages dependencies\n\n### Added\n\n* The new `ProceduralMotion_Tag` tag component data type informs Entities Graphics that an Entity needs to participate in the object motion vector pass. The tag is automatically added for entities that go through the builtin MeshRendererBaker path.\n* Enable entities motion vector pass participation for URP.\n* PruneUploadBufferPool API to request pruning of the upload buffer pool.\n\n\n### Fixed\n\n* GameObjects that depend on vertex shader logic to generate procedural motion vectors through object motion vector passes will now also do the same when baked to Entities and rendered through Entities Graphics."
   },
   "upmCi": {
-    "footprint": "b30d75e71b7cb1e38d98d187e7095ae1ea33bbce"
+    "footprint": "0272692301aadf6ab8f8a54a59dd19a7ea2445c3"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.3/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.4/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "921920e681054c59b440cc1e2aef10f781dc4124"
+    "revision": "f9f023a1661a1a7a17264c9907b75c9b46434416"
   }
 }

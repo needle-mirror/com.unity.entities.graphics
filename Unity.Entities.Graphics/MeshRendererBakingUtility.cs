@@ -176,6 +176,7 @@ namespace Unity.Rendering
             // Add all components up front using as few calls as possible.
             var componentFlag = RenderMeshUtility.EntitiesGraphicsComponentFlags.Baking;
             componentFlag.AppendMotionAndProbeFlags(renderMeshDescription, baker.IsStatic());
+            componentFlag.AppendPerVertexMotionPassFlag(materials);
             componentFlag.AppendDepthSortedFlag(materials);
             lodComponent.AppendLODFlags(ref componentFlag);
             baker.AddComponent(entity, RenderMeshUtility.ComputeComponentTypes(componentFlag));
@@ -264,6 +265,8 @@ namespace Unity.Rendering
             {
                 if (materials[i] == null)
                     errorMessage += $"Material ({i}) is null. ";
+                else if (materials[i].shader == null)
+                    errorMessage += $"Material {materials[i].name} ({i}) has null shader. ";
             }
 
             if (!string.IsNullOrEmpty(errorMessage))

@@ -112,9 +112,10 @@ namespace Unity.Rendering
             Baking = 1 << 5,
             UseRenderMeshArray = 1 << 6,
             LODGroup = 1 << 7,
+            PerVertexMotionPass = 1 << 8,
 
             // Count of unique flag combinations
-            PermutationCount = 1 << 8,
+            PermutationCount = 1 << 9,
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -171,6 +172,8 @@ namespace Unity.Rendering
     #if USE_HYBRID_MOTION_PASS
                 if (flags.HasFlagFast(EntitiesGraphicsComponentFlags.InMotionPass))
                     components.Add(ComponentType.ReadWrite<BuiltinMaterialPropertyUnity_MatrixPreviousM>());
+                if (flags.HasFlagFast(EntitiesGraphicsComponentFlags.PerVertexMotionPass))
+                    components.Add(ComponentType.ReadWrite<PerVertexMotionVectors_Tag>());
     #endif
                 if (flags.HasFlagFast(EntitiesGraphicsComponentFlags.LightProbesBlend))
                     components.Add(ComponentType.ReadWrite<BlendProbeTag>());
@@ -208,6 +211,12 @@ namespace Unity.Rendering
             if (k_UseHybridMotionPass && renderMeshDescription.FilterSettings.IsInMotionPass && renderMeshDescription.FilterSettings.MotionMode == MotionVectorGenerationMode.Object && !isStatic)
                 flags |= EntitiesGraphicsComponentFlags.InMotionPass;
             flags |= LightProbeFlags(renderMeshDescription.LightProbeUsage);
+        }
+
+        internal static void AppendPerVertexMotionPassFlag(this ref EntitiesGraphicsComponentFlags flags, ReadOnlySpan<Material> materials)
+        {
+            foreach (var material in materials)
+                flags.AppendPerVertexMotionPassFlag(material);
         }
 
         internal static void AppendDepthSortedFlag(this ref EntitiesGraphicsComponentFlags flags, ReadOnlySpan<Material> materials)
@@ -303,6 +312,7 @@ namespace Unity.Rendering
             // Add all components up front using as few calls as possible.
             var componentFlags = EntitiesGraphicsComponentFlags.None;
             componentFlags.AppendMotionAndProbeFlags(renderMeshDescription, entityManager.HasComponent<Static>(entity));
+            componentFlags.AppendPerVertexMotionPassFlag(material);
             componentFlags.AppendDepthSortedFlag(material);
             entityManager.AddComponent(entity, ComputeComponentTypes(componentFlags));
 
@@ -311,7 +321,30 @@ namespace Unity.Rendering
             entityManager.SetComponentData(entity, new RenderBounds { Value = mesh.bounds.ToAABB() });
         }
 
+        private const string kMotionVectorsShaderPass_HDRP_URP = "MotionVectors";
+        private const string kMotionVectorMaterialTagKey_HDRP = "MotionVector";
+        private const string kMotionVectorMaterialTagValue_HDRP = "User";
+        private static readonly ShaderTagId kMotionVectorShaderTagKey_URP = new("AlwaysRenderMotionVectors");
+        private static readonly ShaderTagId kMotionVectorShaderTagValue_URP = new("true");
+        /// <summary>
+        /// Adds the `PerVertexMotionPass` flag if the given material wants to write vertex shader generated motion
+        /// vectors. Works for materials that use standard HDRP or URP conventions for writing motion vectors.
+        /// </summary>
+        static void AppendPerVertexMotionPassFlag(this ref EntitiesGraphicsComponentFlags flags, Material material)
+        {
+#if HDRP_10_0_0_OR_NEWER
+            // For HDRP check that the motion vectors pass is enabled and that the material enables user defined motion vectors.
+            if(material.GetShaderPassEnabled(kMotionVectorsShaderPass_HDRP_URP) && material.GetTag(kMotionVectorMaterialTagKey_HDRP, false) == kMotionVectorMaterialTagValue_HDRP)
+                flags |= EntitiesGraphicsComponentFlags.PerVertexMotionPass;
+#elif URP_16_0_0_OR_NEWER
+            // For URP check that the motion vectors pass is enabled and that the shader has user defined motion vectors.
+            if(material.GetShaderPassEnabled(kMotionVectorsShaderPass_HDRP_URP) && material.shader.FindSubshaderTagValue(0, kMotionVectorShaderTagKey_URP) == kMotionVectorShaderTagValue_URP)
+                flags |= EntitiesGraphicsComponentFlags.PerVertexMotionPass;
+#endif
+        }
+
 #pragma warning restore CS0162
+
         static void AppendDepthSortedFlag(this ref EntitiesGraphicsComponentFlags flags, Material material)
         {
             if (IsMaterialTransparent(material))

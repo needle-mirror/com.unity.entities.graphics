@@ -1,0 +1,50 @@
+{
+  "exempts": {
+    "PVP-38-1": {
+      "errors": [
+        "Unity.Entities.Graphics/Deformations/Resources/BlendShapeComputeShader.compute",
+        "Unity.Entities.Graphics/Deformations/Resources/InstantiateDeformationData.compute",
+        "Unity.Entities.Graphics/Deformations/Resources/SkinningComputeShader.compute",
+        "Unity.Entities.Graphics/Resources/SparseUploader.compute",
+        "Unity.Entities.Graphics/Deformations/Resources/BlendShapeComputeShader.compute.meta",
+        "Unity.Entities.Graphics/Deformations/Resources/InstantiateDeformationData.compute.meta",
+        "Unity.Entities.Graphics/Resources/Occlusion/OccludeeScreenSpaceAABB.shader.meta",
+        "Unity.Entities.Graphics/Resources/Occlusion.meta",
+        "Unity.Entities.Graphics/Resources/Occlusion/OcclusionDebugComposite.shader.meta",
+        "Unity.Entities.Graphics/Resources/Occlusion/OcclusionDebugOccluders.shader.meta",
+        "Unity.Entities.Graphics/Resources/Occlusion/ShowOccluderMesh.shadergraph.meta",
+        "Unity.Entities.Graphics/Deformations/Resources/SkinningComputeShader.compute.meta",
+        "Unity.Entities.Graphics/Resources/SparseUploader.compute.meta",
+        "Unity.Entities.Graphics/Resources/Occlusion/OccludeeScreenSpaceAABB.shader",
+        "Unity.Entities.Graphics/Resources/Occlusion/OcclusionDebugComposite.shader",
+        "Unity.Entities.Graphics/Resources/Occlusion/OcclusionDebugOccluders.shader",
+        "Unity.Entities.Graphics/Resources/Occlusion/ShowOccluderMesh.shadergraph"
+      ]
+    },
+    "PVP-41-1": {
+      "errors": [
+        "CHANGELOG.md: line 7: Unreleased section is not allowed for public release"
+      ]
+    },
+    "PVP-150-1": {
+      "errors": [
+        "MaterialOverride: void OnValidate(): cannot auto-inheritdoc (not an override or interface implementation); <inheritdoc> must specify 'cref'",
+        "MaterialOverrideAsset: void OnValidate(): cannot auto-inheritdoc (not an override or interface implementation); <inheritdoc> must specify 'cref'",
+        "Unity.Rendering.MaterialMeshInfo: MaterialMeshInfo FromMaterialMeshIndexRange(int, int): empty <returns> tag"
+      ]
+    },
+    "PVP-151-1": {
+      "errors": [
+        "MaterialOverride: void OnValidate(): missing <summary>",
+        "MaterialOverrideAsset: void OnValidate(): missing <summary>",
+        "Unity.Rendering.OverrideLightProbeAnchorComponent: undocumented",
+        "Unity.Rendering.OverrideLightProbeAnchorComponent: entity: undocumented",
+        "Unity.Rendering.OverrideLightProbeAnchorBaker: undocumented",
+        "Unity.Rendering.OverrideLightProbeAnchorBaker: void Bake(MeshRenderer): undocumented",
+        "Unity.Rendering.MaterialMeshIndex: MaterialIndex: undocumented",
+        "Unity.Rendering.MaterialMeshIndex: MeshIndex: undocumented",
+        "Unity.Rendering.MaterialMeshIndex: SubMeshIndex: undocumented"
+      ]
+    }
+  }
+}

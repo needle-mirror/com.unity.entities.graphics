@@ -1014,6 +1014,7 @@ namespace Unity.Rendering
         [ReadOnly] public ComponentTypeHandle<MaterialMeshInfo> MaterialMeshInfo;
         [ReadOnly] public ComponentTypeHandle<LocalToWorld> LocalToWorld;
         [ReadOnly] public ComponentTypeHandle<DepthSorted_Tag> DepthSorted;
+        [ReadOnly] public ComponentTypeHandle<PerVertexMotionVectors_Tag> ProceduralMotion;
         [ReadOnly] public ComponentTypeHandle<DeformedMeshIndex> DeformedMeshIndex;
         [ReadOnly] public SharedComponentTypeHandle<RenderMeshArray> RenderMeshArray;
         [ReadOnly] public SharedComponentTypeHandle<RenderFilterSettings> RenderFilterSettings;
@@ -1101,7 +1102,8 @@ namespace Unity.Rendering
 #else
                     bool isDeformed = false;
 #endif
-                    hasMotion = orderChanged || transformChanged || isDeformed;
+                    bool hasProceduralMotion = chunk.Has(ref ProceduralMotion);
+                    hasMotion = orderChanged || transformChanged || isDeformed || hasProceduralMotion;
                 }
 
                 int chunkStartIndex = entitiesGraphicsChunkInfo.CullingData.ChunkOffsetInBatch;
