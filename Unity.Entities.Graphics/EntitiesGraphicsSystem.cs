@@ -744,6 +744,7 @@ namespace Unity.Rendering
         const float kMaxBatchGrowFactor = 2f;
         const int kNumNewChunksPerThread = 1; // TODO: Tune this
         const int kNumScatteredIndicesPerThread = 8; // TODO: Tune this
+        const int kMaxCullingPassesWithoutAllocatorRewind = 1024;
 
         const int kMaxChunkMetadata = 1 * 1024 * 1024;
         const ulong kMaxGPUAllocatorMemory = 1024 * 1024 * 1024; // 1GiB of potential memory space
@@ -783,7 +784,7 @@ namespace Unity.Rendering
 #if UNITY_EDITOR
         float m_CamMoveDistance;
 #endif
-
+        int m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind;
 #if UNITY_EDITOR
         private EntitiesGraphicsPerThreadStats* m_PerThreadStats = null;
         private EntitiesGraphicsStats m_Stats;
@@ -1067,6 +1068,8 @@ namespace Unity.Rendering
 
             m_ThreadLocalAllocators = new ThreadLocalAllocator(-1);
 
+            m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind = 0;
+
             if (ErrorShaderEnabled)
             {
                 m_ErrorMaterial = EntitiesGraphicsUtils.LoadErrorMaterial();
@@ -1285,11 +1288,7 @@ namespace Unity.Rendering
 
             // Make sure any release jobs that have stored pointers in temp allocated
             // memory have finished before we rewind
-            m_CullingJobReleaseDependency.Complete();
-            m_CullingJobReleaseDependency = default;
-            m_ReleaseDependency.Complete();
-            m_ReleaseDependency = default;
-            m_ThreadLocalAllocators.Rewind();
+            RewindThreadLocalAllocator();
 
             m_LastSystemVersionAtLastUpdate = LastSystemVersion;
 
@@ -1428,6 +1427,16 @@ namespace Unity.Rendering
             m_ResetLod = true;
         }
 
+        private void RewindThreadLocalAllocator()
+        {
+            m_CullingJobReleaseDependency.Complete();
+            m_CullingJobReleaseDependency = default;
+            m_ReleaseDependency.Complete();
+            m_ReleaseDependency = default;
+            m_ThreadLocalAllocators.Rewind();
+            m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind = 0;
+        }
+
         // This function does only return a meaningful IncludeExcludeListFilter object when called from a BRG culling callback.
         static IncludeExcludeListFilter GetPickingIncludeExcludeListFilterForCurrentCullingCallback(EntityManager entityManager, in BatchCullingContext cullingContext)
         {
@@ -1493,6 +1502,13 @@ namespace Unity.Rendering
                 includeExcludeListFilter.Dispose();
                 return m_CullingJobDependency;
             }
+
+            //if we have accumulated too many culling passes without rewinding the allocator in system update, force the rewind here. Otherwise when system update doesn't tick but culling does, we might run out of memory
+            if (m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind == kMaxCullingPassesWithoutAllocatorRewind)
+            {
+                RewindThreadLocalAllocator();
+            }
+            ++m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind;
 
             var lodParams = LODGroupExtensions.CalculateLODParams(cullingContext.lodParameters);
 

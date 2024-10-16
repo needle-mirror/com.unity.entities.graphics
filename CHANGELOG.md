@@ -4,6 +4,12 @@ uid: changelog
 
 # Changelog
 
+## [1.4.3] - 2024-10-16
+
+### Fixed
+* Entities graphics constantly allocating more memory without releasing it until next time system update is called.
+
+
 ## [1.4.2] - 2024-10-04
 
 ### Changed
@@ -16,7 +22,6 @@ uid: changelog
 * The new `ProceduralMotion_Tag` tag component data type informs Entities Graphics that an Entity needs to participate in the object motion vector pass. The tag is automatically added for entities that go through the builtin MeshRendererBaker path.
 * Enable entities motion vector pass participation for URP.
 * PruneUploadBufferPool API to request pruning of the upload buffer pool.
-
 
 ### Fixed
 
