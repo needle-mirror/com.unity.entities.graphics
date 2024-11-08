@@ -247,11 +247,11 @@ namespace Unity.Rendering
                     }
                     else
                     {
-                        if (!materialMeshInfo.IsRuntimeMaterial)
-                            outOfBounds = outOfBounds || (materialMeshInfo.MaterialArrayIndex) >= materials.Length;
+                        if (materialMeshInfo.Material < 0)
+                            outOfBounds = outOfBounds || MaterialMeshInfo.StaticIndexToArrayIndex(materialMeshInfo.Material) >= materials.Length;
 
-                        if (!materialMeshInfo.IsRuntimeMesh)
-                            outOfBounds = outOfBounds || materialMeshInfo.MeshArrayIndex >= meshes.Length;
+                        if (materialMeshInfo.Mesh < 0)
+                            outOfBounds = outOfBounds || MaterialMeshInfo.StaticIndexToArrayIndex(materialMeshInfo.Mesh) >= meshes.Length;
                     }
 
                     if (outOfBounds)

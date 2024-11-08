@@ -170,9 +170,9 @@ namespace Unity.Rendering
             set => Material = (int) value.value;
         }
 
-        internal bool IsRuntimeMaterial => Material >= 0;
+        internal bool IsRuntimeMaterial => !HasMaterialMeshIndexRange && Material >= 0;
 
-        internal bool IsRuntimeMesh => Mesh >= 0;
+        internal bool IsRuntimeMesh => !HasMaterialMeshIndexRange && Mesh >= 0;
 
         internal int MeshArrayIndex
         {

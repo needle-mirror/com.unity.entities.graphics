@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.4.3",
+  "version": "1.4.5",
   "unity": "2022.3",
   "unityRelease": "11f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.3.5",
+    "com.unity.entities": "1.3.8",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.9"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Fixed\n* Entities graphics constantly allocating more memory without releasing it until next time system update is called."
+    "changelog": "### Added\n\n* The new PerVertexMotionVectors_Tag component data type informs Entities Graphics that an Entity needs to participate in the object motion vector pass. The tag is automatically added for entities that go through the builtin MeshRendererBaker path.\n\n### Fixed\n\n* \"MaterialMeshInfo does not point to a valid mesh\" for runtime created entities"
   },
   "upmCi": {
-    "footprint": "6a13371f12053bdd67b593a0076cbd3c777a3351"
+    "footprint": "691a23e7498ac2c03ccf7de35f5c3c6db2db3e0c"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.4/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "97e332ca8068d973f6571bcb144c924ebd679c79"
+    "revision": "3ea543f9dd8be902be20c6f04e900cb913436f36"
   }
 }

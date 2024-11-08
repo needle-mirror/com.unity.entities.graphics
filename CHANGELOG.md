@@ -4,6 +4,17 @@ uid: changelog
 
 # Changelog
 
+## [1.4.5] - 2024-11-08
+
+### Added
+
+* The new PerVertexMotionVectors_Tag component data type informs Entities Graphics that an Entity needs to participate in the object motion vector pass. The tag is automatically added for entities that go through the builtin MeshRendererBaker path.
+
+### Fixed
+
+* "MaterialMeshInfo does not point to a valid mesh" for runtime created entities
+
+
 ## [1.4.3] - 2024-10-16
 
 ### Fixed
