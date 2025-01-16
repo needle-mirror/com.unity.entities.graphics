@@ -21,6 +21,14 @@
         "Unity.Entities.Graphics/Resources/Occlusion/ShowOccluderMesh.shadergraph"
       ]
     },
+    "PVP-38-2": {
+      "errors": [
+        "Unity.Entities.Graphics/Resources/SparseUploader.compute",
+        "Unity.Entities.Graphics/Deformations/Resources/BlendShapeComputeShader.compute",
+        "Unity.Entities.Graphics/Deformations/Resources/InstantiateDeformationData.compute",
+        "Unity.Entities.Graphics/Deformations/Resources/SkinningComputeShader.compute"
+      ]
+    },
     "PVP-41-1": {
       "errors": [
         "CHANGELOG.md: line 7: Unreleased section is not allowed for public release"

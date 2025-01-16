@@ -4,6 +4,13 @@ uid: changelog
 
 # Changelog
 
+## [1.4.6] - 2025-01-16
+
+### Changed
+
+* Updated entities packages dependencies
+
+
 ## [1.4.5] - 2024-11-08
 
 ### Added
