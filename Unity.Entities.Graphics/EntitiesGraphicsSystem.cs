@@ -1493,6 +1493,14 @@ namespace Unity.Rendering
         {
             Profiler.BeginSample("OnPerformCulling");
 
+            var chunkCount = m_EntitiesGraphicsRenderedQueryRO.CalculateChunkCountWithoutFiltering();
+
+            if (chunkCount == 0 || !ShouldRunSystem())
+            {
+                Profiler.EndSample();
+                return default;
+            }
+
             IncludeExcludeListFilter includeExcludeListFilter = GetPickingIncludeExcludeListFilterForCurrentCullingCallback(EntityManager, cullingContext);
 
             // If inclusive filtering is enabled and we know there are no included entities,
@@ -1500,6 +1508,7 @@ namespace Unity.Rendering
             if (includeExcludeListFilter.IsIncludeEnabled && includeExcludeListFilter.IsIncludeEmpty)
             {
                 includeExcludeListFilter.Dispose();
+                Profiler.EndSample();
                 return m_CullingJobDependency;
             }
 
@@ -1574,7 +1583,7 @@ namespace Unity.Rendering
             }
 
             var visibilityItems = new IndirectList<ChunkVisibilityItem>(
-                m_EntitiesGraphicsRenderedQueryRO.CalculateChunkCountWithoutFiltering(),
+                chunkCount,
                 m_ThreadLocalAllocators.GeneralAllocator);
 
             bool cullLightmapShadowCasters = (cullingContext.cullingFlags & BatchCullingFlags.CullLightmappedShadowCasters) != 0;

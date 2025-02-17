@@ -4,11 +4,11 @@ uid: changelog
 
 # Changelog
 
-## [1.4.6] - 2025-01-16
+## [1.4.7] - 2025-02-17
 
-### Changed
+### Fixed
 
-* Updated entities packages dependencies
+* OnPerformCulling does an early out when handling empty worlds
 
 
 ## [1.4.5] - 2024-11-08
