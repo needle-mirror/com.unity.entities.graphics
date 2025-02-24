@@ -221,9 +221,8 @@ namespace Unity.Rendering
         {
             public IntPtr AddTo;
         }
-
         internal delegate void AddToDelegate(
-            EntityManager* em, EntityQuery* query,
+            EntityManager* em, ArchetypeChunk* chunks, int chunksLength,
             UnityObjectRef<Material>* materialsPtr, int materialsLength,
             UnityObjectRef<Mesh>* meshesPtr, int meshesLength,
             MaterialMeshIndex* materialMeshIndicesPtr, int materialMeshIndicesLength);
@@ -247,17 +246,23 @@ namespace Unity.Rendering
         }
 
         public static void AddRenderMeshArrayTo(
-            EntityManager em, EntityQuery query,
+            EntityManager em, NativeArray<ArchetypeChunk> chunks,
             NativeArray<UnityObjectRef<Material>> materials,
             NativeArray<UnityObjectRef<Mesh>> meshes,
             NativeArray<MaterialMeshIndex> materialMeshIndices)
         {
-                ((delegate* unmanaged[Cdecl] <
-                    EntityManager*, EntityQuery*,
-                    UnityObjectRef<Material>*, int,
-                    UnityObjectRef<Mesh>*, int,
-                    MaterialMeshIndex*, int,
-                    void>)k_Functions.Data.AddTo)(&em, &query, (UnityObjectRef<Material>*)materials.GetUnsafeReadOnlyPtr(), materials.Length, (UnityObjectRef<Mesh>*)meshes.GetUnsafeReadOnlyPtr(), meshes.Length, (MaterialMeshIndex*)materialMeshIndices.GetUnsafeReadOnlyPtr(), materialMeshIndices.Length);
+            ((delegate* unmanaged[Cdecl] <
+                EntityManager*,
+                ArchetypeChunk*, int,
+                UnityObjectRef<Material>*, int,
+                UnityObjectRef<Mesh>*, int,
+                MaterialMeshIndex*, int,
+                void>)k_Functions.Data.AddTo)(
+                    &em,
+                    (ArchetypeChunk*)chunks.GetUnsafeReadOnlyPtr(), chunks.Length,
+                    (UnityObjectRef<Material>*)materials.GetUnsafeReadOnlyPtr(), materials.Length,
+                    (UnityObjectRef<Mesh>*)meshes.GetUnsafeReadOnlyPtr(), meshes.Length,
+                    (MaterialMeshIndex*)materialMeshIndices.GetUnsafeReadOnlyPtr(), materialMeshIndices.Length);
         }
     }
 
@@ -294,22 +299,37 @@ namespace Unity.Rendering
             ResetHash128();
         }
 
-
         /// <summary>
-        /// Constructs an instance of RenderMeshArray from an array of materials and an array of meshes.
+        /// Constructs an instance of RenderMeshArray from an array of materials and an array of meshes
+        /// and sets it on the provided chunk.
         /// </summary>
-        /// <param name="materials">The array of materials to use in the RenderMeshArray.</param>
-        /// <param name="meshes">The array of meshes to use in the RenderMeshArray.</param>
-        /// <param name="materialMeshIndices">The array of MaterialMeshIndex to use in the RenderMeshArray.</param>
+        /// <param name="em">The EntityManager which will add the component onto the chunk</param>
+        /// <param name="chunksPtr">A pointer to the array of chunks to add the RenderMeshArray onto</param>
+        /// <param name="chunksLength">The length of the chunk array</param>
+        /// <param name="materialsPtr">A pointer to the array of materials to use in the RenderMeshArray</param>
+        /// <param name="materialsLength">The length of the material array</param>
+        /// <param name="meshesPtr">A pointer to the array of meshes to use in the RenderMeshArray.</param>
+        /// <param name="meshesLength">The length of the mesh array</param>
+        /// <param name="materialMeshIndicesPtr">A pointer to the array of MaterialMeshIndex to use in the RenderMeshArray.</param>
+        /// <param name="materialMeshIndicesLength">The length of the mesh material indices array</param>
         [MonoPInvokeCallback(typeof(CallFromBurstRenderMeshArrayHelper.AddToDelegate))]
-        internal static unsafe void AddTo(EntityManager* em, EntityQuery* query,
+        internal static unsafe void AddTo(EntityManager* em,
+            ArchetypeChunk* chunksPtr, int chunksLength,
             UnityObjectRef<Material>* materialsPtr, int materialsLength,
             UnityObjectRef<Mesh>* meshesPtr, int meshesLength,
             MaterialMeshIndex* materialMeshIndicesPtr, int materialMeshIndicesLength)
-            => (*em).AddSharedComponentManaged(*query, new RenderMeshArray(
+        {
+            var newArray = new RenderMeshArray(
                 new ReadOnlySpan<UnityObjectRef<Material>>(materialsPtr, materialsLength),
                 new ReadOnlySpan<UnityObjectRef<Mesh>>(meshesPtr, meshesLength),
-                new ReadOnlySpan<MaterialMeshIndex>(materialMeshIndicesPtr, materialMeshIndicesLength)));
+                new ReadOnlySpan<MaterialMeshIndex>(materialMeshIndicesPtr, materialMeshIndicesLength));
+
+            var chunkArray = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<ArchetypeChunk>(chunksPtr, chunksLength, Allocator.None);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref chunkArray, AtomicSafetyHandle.GetTempMemoryHandle());
+#endif
+            (*em).AddSharedComponentManaged(chunkArray, newArray);
+        }
 
         /// <summary>
         /// Constructs an instance of RenderMeshArray from an array of materials and an array of meshes.

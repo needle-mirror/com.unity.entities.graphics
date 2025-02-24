@@ -4,6 +4,13 @@ uid: changelog
 
 # Changelog
 
+## [1.4.8] - 2025-02-24
+
+### Fixed
+
+* Fixed an issue where texture references would be lost if a texture was created during bake time and assigned to a material, while making use of SceneSections.
+
+
 ## [1.4.7] - 2025-02-17
 
 ### Fixed

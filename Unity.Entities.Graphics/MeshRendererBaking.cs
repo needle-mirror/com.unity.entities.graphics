@@ -10,7 +10,6 @@ using Unity.Core;
 using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace Unity.Rendering
 {
@@ -267,6 +266,9 @@ namespace Unity.Rendering
 
         EntityQuery m_BakedEntities;
         EntityQuery m_RenderMeshEntities;
+        ComponentTypeHandle<RenderMeshUnmanaged> m_RenderMeshUnmanagedHandle;
+        ComponentTypeHandle<MaterialMeshInfo> m_MaterialMeshInfoHandle;
+        BufferTypeHandle<MeshRendererBakingUtility.MaterialReferenceElement> m_MaterialReferenceHandle;
 
         /// <inheritdoc/>
         [BurstCompile]
@@ -276,10 +278,17 @@ namespace Unity.Rendering
                 .WithAny<MeshRendererBakingData, SkinnedMeshRendererBakingData>()
                 .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
                 .Build(ref state);
-            m_RenderMeshEntities = new EntityQueryBuilder(state.WorldUpdateAllocator)
-                .WithAll<RenderMeshUnmanaged, MaterialMeshInfo>()
-                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IgnoreComponentEnabledState)
+
+            m_RenderMeshEntities = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<RenderMeshUnmanaged, MaterialMeshInfo, SceneSection>()
+                .WithOptions(EntityQueryOptions.IncludePrefab |
+                             EntityQueryOptions.IncludeDisabledEntities |
+                             EntityQueryOptions.IgnoreComponentEnabledState)
                 .Build(ref state);
+
+            m_RenderMeshUnmanagedHandle = state.GetComponentTypeHandle<RenderMeshUnmanaged>();
+            m_MaterialMeshInfoHandle = state.GetComponentTypeHandle<MaterialMeshInfo>();
+            m_MaterialReferenceHandle = state.GetBufferTypeHandle<MeshRendererBakingUtility.MaterialReferenceElement>();
 
             state.RequireForUpdate(m_BakedEntities);
         }
@@ -288,80 +297,119 @@ namespace Unity.Rendering
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var renderMeshCount = m_RenderMeshEntities.CalculateEntityCount();
-            using var meshToIndexMap = new NativeHashMap<UnityObjectRef<Mesh>, int>(renderMeshCount, state.WorldUpdateAllocator);
-            using var materialToIndexMap = new NativeHashMap<UnityObjectRef<Material>, int>(renderMeshCount, state.WorldUpdateAllocator);
-            using var uniqueMeshes = new NativeList<UnityObjectRef<Mesh>>(renderMeshCount, state.WorldUpdateAllocator);
-            using var uniqueMaterials = new NativeList<UnityObjectRef<Material>>(renderMeshCount, state.WorldUpdateAllocator);
+            AddRenderMeshArrayToChunk(ref state, m_RenderMeshEntities);
+        }
 
-            foreach (var (renderMeshRef, materialMeshInfoRef) in SystemAPI.Query<RefRO<RenderMeshUnmanaged>, RefRW<MaterialMeshInfo>>().WithNone<MeshRendererBakingUtility.MaterialReferenceElement>()
-                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IgnoreComponentEnabledState))
-            {
-                var renderMesh = renderMeshRef.ValueRO;
-
-                // Get mesh and material index
-                var materialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap, renderMesh.materialForSubMesh);
-                var meshIndex = GetUniqueIndex(uniqueMeshes, meshToIndexMap, renderMesh.mesh);
-
-                materialMeshInfoRef.ValueRW = MaterialMeshInfo.FromRenderMeshArrayIndices(materialIndex, meshIndex, renderMesh.subMeshInfo.SubMesh);
-            }
-
+        unsafe void AddRenderMeshArrayToChunk(ref SystemState state, EntityQuery query)
+        {
+            using var meshToIndexMap = new NativeHashMap<UnityObjectRef<Mesh>, int>(Chunk.kMaximumEntitiesPerChunk, state.WorldUpdateAllocator);
+            using var materialToIndexMap = new NativeHashMap<UnityObjectRef<Material>, int>(Chunk.kMaximumEntitiesPerChunk, state.WorldUpdateAllocator);
+            using var uniqueMeshes = new NativeList<UnityObjectRef<Mesh>>(Chunk.kMaximumEntitiesPerChunk, state.WorldUpdateAllocator);
+            using var uniqueMaterials = new NativeList<UnityObjectRef<Material>>(Chunk.kMaximumEntitiesPerChunk, state.WorldUpdateAllocator);
 
 #if ENABLE_MESH_RENDERER_SUBMESH_DATA_SHARING
-            using var materialMeshIndices = new NativeList<MaterialMeshIndex>(renderMeshCount, state.WorldUpdateAllocator);
-            using var subMeshKeyToMaterialInfo = new NativeHashMap<SubMeshKey, MaterialMeshInfo>(renderMeshCount, state.WorldUpdateAllocator);
-
-            foreach (var (renderMeshRef, materialMeshInfoRef, extraMaterials) in SystemAPI.Query<RefRO<RenderMeshUnmanaged>, RefRW<MaterialMeshInfo>, DynamicBuffer<MeshRendererBakingUtility.MaterialReferenceElement>>()
-                .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IgnoreComponentEnabledState))
+            using var materialMeshIndices = new NativeList<MaterialMeshIndex>(Chunk.kMaximumEntitiesPerChunk, state.WorldUpdateAllocator);
+            using var subMeshKeyToMaterialInfo = new NativeHashMap<SubMeshKey, MaterialMeshInfo>(Chunk.kMaximumEntitiesPerChunk, state.WorldUpdateAllocator);
+#else
+            using var materialMeshIndices = new NativeList<MaterialMeshIndex>(0, state.WorldUpdateAllocator);
+            using var subMeshKeyToMaterialInfo = new NativeHashMap<SubMeshKey, MaterialMeshInfo>(0, state.WorldUpdateAllocator);
+#endif
+            // We are creating a lookup table of meshes and materials for each scene section. So here we are
+            // grabbing all different scene sections their associated chunks. We loop through the chunks and store all
+            // the different materials and meshes in the unique maps. Finally, we loop through all the chunks again and store
+            // the maps onto them in a managed shared component (RenderMeshArray).
+            state.EntityManager.GetAllUniqueSharedComponents(out NativeList<SceneSection> sceneSections, state.WorldUpdateAllocator);
+            foreach (var sceneSection in sceneSections)
             {
-                var renderMesh = renderMeshRef.ValueRO;
+                uniqueMeshes.Clear();
+                uniqueMaterials.Clear();
+                meshToIndexMap.Clear();
+                materialToIndexMap.Clear();
+                materialMeshIndices.Clear();
+                subMeshKeyToMaterialInfo.Clear();
 
-                var subMeshKey = new SubMeshKey
+                m_RenderMeshUnmanagedHandle.Update(ref state);
+                m_MaterialMeshInfoHandle.Update(ref state);
+                m_MaterialReferenceHandle.Update(ref state);
+
+                query.SetSharedComponentFilter(sceneSection);
+
+                using var chunks = query.ToArchetypeChunkArray(state.WorldUpdateAllocator);
+                foreach (var chunk in chunks)
                 {
-                    Mesh = renderMesh.mesh,
-                    SubmeshInfo = renderMesh.subMeshInfo,
-                    MaterialForSubmesh = renderMesh.materialForSubMesh,
-                    ExtraMaterials = extraMaterials
-                };
+                    var meshPtr = chunk.GetComponentDataPtrRW(ref m_RenderMeshUnmanagedHandle);
+                    var materialPtr = chunk.GetComponentDataPtrRW(ref m_MaterialMeshInfoHandle);
+                    var extraMaterials = chunk.GetBufferAccessor(ref m_MaterialReferenceHandle);
 
-                if (!subMeshKeyToMaterialInfo.TryGetValue(subMeshKey, out var materialMeshInfo))
-                {
-                    // Get mesh and material index
-                    var meshIndex = GetUniqueIndex(uniqueMeshes, meshToIndexMap, renderMesh.mesh);
-                    materialMeshInfo = MaterialMeshInfo.FromMaterialMeshIndexRange(materialMeshIndices.Length, extraMaterials.Length + 1);
-                    subMeshKeyToMaterialInfo.Add(subMeshKey, materialMeshInfo);
-
-                    materialMeshIndices.Add(new MaterialMeshIndex
+                    var entityCount = chunk.Count;
+                    if (extraMaterials.Length == 0)
                     {
-                        MeshIndex = meshIndex,
-                        MaterialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap, renderMesh.materialForSubMesh),
-                        SubMeshIndex = 0
-                    });
-
-                    for (sbyte i = 0; i < extraMaterials.Length; i++)
-                    {
-                        materialMeshIndices.Add(new MaterialMeshIndex
+                        for (var i = 0; i < entityCount; ++i)
                         {
-                            MeshIndex = meshIndex,
-                            MaterialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap, extraMaterials[i].Material),
-                            SubMeshIndex = i + 1
-                        });
+                            var materialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap,
+                                meshPtr[i].materialForSubMesh);
+                            var meshIndex = GetUniqueIndex(uniqueMeshes, meshToIndexMap, meshPtr[i].mesh);
+
+                            materialPtr[i] = MaterialMeshInfo.FromRenderMeshArrayIndices(materialIndex, meshIndex,
+                                meshPtr[i].subMeshInfo.SubMesh);
+                        }
+                    }
+                    else
+                    {
+                        for (var i = 0; i < entityCount; ++i)
+                        {
+                            var extraMaterialBuffer = extraMaterials[i];
+                            var renderMesh = meshPtr[i];
+
+                            var subMeshKey = new SubMeshKey
+                            {
+                                Mesh = renderMesh.mesh,
+                                SubmeshInfo = renderMesh.subMeshInfo,
+                                MaterialForSubmesh = renderMesh.materialForSubMesh,
+                                ExtraMaterials = extraMaterialBuffer
+                            };
+
+                            if (!subMeshKeyToMaterialInfo.TryGetValue(subMeshKey, out var materialMeshInfo))
+                            {
+                                // Get mesh and material index
+                                var meshIndex = GetUniqueIndex(uniqueMeshes, meshToIndexMap, renderMesh.mesh);
+                                materialMeshInfo = MaterialMeshInfo.FromMaterialMeshIndexRange(materialMeshIndices.Length,
+                                    extraMaterialBuffer.Length + 1);
+                                subMeshKeyToMaterialInfo.Add(subMeshKey, materialMeshInfo);
+
+                                materialMeshIndices.Add(new MaterialMeshIndex
+                                {
+                                    MeshIndex = meshIndex,
+                                    MaterialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap,
+                                        renderMesh.materialForSubMesh),
+                                    SubMeshIndex = 0
+                                });
+
+                                for (sbyte m = 0; m < extraMaterialBuffer.Length; m++)
+                                {
+                                    materialMeshIndices.Add(new MaterialMeshIndex
+                                    {
+                                        MeshIndex = meshIndex,
+                                        MaterialIndex = GetUniqueIndex(uniqueMaterials, materialToIndexMap,
+                                            extraMaterialBuffer[m].Material),
+                                        SubMeshIndex = m + 1
+                                    });
+                                }
+                            }
+
+                            materialPtr[i] = materialMeshInfo;
+                        }
                     }
                 }
 
-                materialMeshInfoRef.ValueRW = materialMeshInfo;
+                if (uniqueMeshes.Length == 0 && uniqueMaterials.Length == 0)
+                    continue;
+
+                CallFromBurstRenderMeshArrayHelper.AddRenderMeshArrayTo(state.EntityManager, chunks,
+                    uniqueMaterials.AsArray(),
+                    uniqueMeshes.AsArray(),
+                    materialMeshIndices.AsArray());
             }
-#else
-            using var materialMeshIndices = new NativeList<MaterialMeshIndex>(0, state.WorldUpdateAllocator);
-#endif
-
-            if (uniqueMeshes.Length == 0 && uniqueMaterials.Length == 0)
-                return;
-
-            CallFromBurstRenderMeshArrayHelper.AddRenderMeshArrayTo(state.EntityManager, m_RenderMeshEntities,
-                uniqueMaterials.AsArray(),
-                uniqueMeshes.AsArray(),
-                materialMeshIndices.AsArray());
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
