@@ -228,10 +228,21 @@ namespace Unity.Rendering
     }
 #endif
 
-#if HDRP_10_0_0_OR_NEWER || URP_10_0_0_OR_NEWER
-    class DecalProjectorCompanionBaker : Baker<DecalProjector>
+#if HDRP_10_0_0_OR_NEWER
+    class HdrpDecalProjectorCompanionBaker : Baker<UnityEngine.Rendering.HighDefinition.DecalProjector>
     {
-        public override void Bake(DecalProjector authoring)
+        public override void Bake(UnityEngine.Rendering.HighDefinition.DecalProjector authoring)
+        {
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
+        }
+    }
+#endif
+#if URP_10_0_0_OR_NEWER
+    class UrpDecalProjectorCompanionBaker : Baker<UnityEngine.Rendering.Universal.DecalProjector>
+    {
+        public override void Bake(UnityEngine.Rendering.Universal.DecalProjector authoring)
         {
             // Setting companions to Dynamic
             var entity = GetEntity(TransformUsageFlags.Dynamic);

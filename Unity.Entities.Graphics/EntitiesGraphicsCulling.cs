@@ -11,6 +11,7 @@
 using UnityEditor;
 #endif
 
+using System.Runtime.InteropServices;
 using Unity.Assertions;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
@@ -532,7 +533,9 @@ namespace Unity.Rendering
 #if !DISABLE_INCLUDE_EXCLUDE_LIST_FILTERING
         public NativeParallelHashSet<int> IncludeEntityIndices;
         public NativeParallelHashSet<int> ExcludeEntityIndices;
+        [MarshalAs(UnmanagedType.U1)]
         public bool IsIncludeEnabled;
+        [MarshalAs(UnmanagedType.U1)]
         public bool IsExcludeEnabled;
 
         public bool IsEnabled => IsIncludeEnabled || IsExcludeEnabled;

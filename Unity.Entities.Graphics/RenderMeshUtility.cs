@@ -334,11 +334,11 @@ namespace Unity.Rendering
         {
 #if HDRP_10_0_0_OR_NEWER
             // For HDRP check that the motion vectors pass is enabled and that the material enables user defined motion vectors.
-            if(material.GetShaderPassEnabled(kMotionVectorsShaderPass_HDRP_URP) && material.GetTag(kMotionVectorMaterialTagKey_HDRP, false) == kMotionVectorMaterialTagValue_HDRP)
+            if(material && material.GetShaderPassEnabled(kMotionVectorsShaderPass_HDRP_URP) && material.GetTag(kMotionVectorMaterialTagKey_HDRP, false) == kMotionVectorMaterialTagValue_HDRP)
                 flags |= EntitiesGraphicsComponentFlags.PerVertexMotionPass;
 #elif URP_16_0_0_OR_NEWER
             // For URP check that the motion vectors pass is enabled and that the shader has user defined motion vectors.
-            if(material.GetShaderPassEnabled(kMotionVectorsShaderPass_HDRP_URP) && material.shader.FindSubshaderTagValue(0, kMotionVectorShaderTagKey_URP) == kMotionVectorShaderTagValue_URP)
+            if(material && material.GetShaderPassEnabled(kMotionVectorsShaderPass_HDRP_URP) && material.shader.FindSubshaderTagValue(0, kMotionVectorShaderTagKey_URP) == kMotionVectorShaderTagValue_URP)
                 flags |= EntitiesGraphicsComponentFlags.PerVertexMotionPass;
 #endif
         }
