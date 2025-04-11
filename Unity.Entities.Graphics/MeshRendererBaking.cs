@@ -260,7 +260,7 @@ namespace Unity.Rendering
 
             static unsafe int GetSequenceHashCode(DynamicBuffer<MeshRendererBakingUtility.MaterialReferenceElement> buffer)
             {
-                return (int)XXHash.Hash32((byte*)buffer.GetUnsafeReadOnlyPtr(), buffer.Length * UnsafeUtility.SizeOf<MeshRendererBakingUtility.MaterialReferenceElement>());
+                return (int)XXHash.Hash32((byte*)buffer.GetUnsafePtr(), buffer.Length * UnsafeUtility.SizeOf<MeshRendererBakingUtility.MaterialReferenceElement>());
             }
         }
 
@@ -288,7 +288,7 @@ namespace Unity.Rendering
 
             m_RenderMeshUnmanagedHandle = state.GetComponentTypeHandle<RenderMeshUnmanaged>();
             m_MaterialMeshInfoHandle = state.GetComponentTypeHandle<MaterialMeshInfo>();
-            m_MaterialReferenceHandle = state.GetBufferTypeHandle<MeshRendererBakingUtility.MaterialReferenceElement>(isReadOnly:true);
+            m_MaterialReferenceHandle = state.GetBufferTypeHandle<MeshRendererBakingUtility.MaterialReferenceElement>();
 
             state.RequireForUpdate(m_BakedEntities);
         }
@@ -339,7 +339,7 @@ namespace Unity.Rendering
                 {
                     var meshPtr = chunk.GetComponentDataPtrRW(ref m_RenderMeshUnmanagedHandle);
                     var materialPtr = chunk.GetComponentDataPtrRW(ref m_MaterialMeshInfoHandle);
-                    var extraMaterials = chunk.GetBufferAccessorRO(ref m_MaterialReferenceHandle);
+                    var extraMaterials = chunk.GetBufferAccessor(ref m_MaterialReferenceHandle);
 
                     var entityCount = chunk.Count;
                     if (extraMaterials.Length == 0)

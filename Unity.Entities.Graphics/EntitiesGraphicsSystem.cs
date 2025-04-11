@@ -1428,20 +1428,13 @@ namespace Unity.Rendering
         }
 
         private void RewindThreadLocalAllocator()
-            => RewindThreadLocalAllocator(
-                ref m_CullingJobReleaseDependency,
-                ref m_ReleaseDependency,
-                ref m_ThreadLocalAllocators,
-                ref m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind);
-
-        private static void RewindThreadLocalAllocator(ref JobHandle cullingJobReleaseDependency, ref JobHandle releaseDependency, ref ThreadLocalAllocator allocator, ref int numberOfCullingPassesAccumulatedWithoutAllocatorRewind)
         {
-            cullingJobReleaseDependency.Complete();
-            cullingJobReleaseDependency = default;
-            releaseDependency.Complete();
-            releaseDependency = default;
-            allocator.Rewind();
-            numberOfCullingPassesAccumulatedWithoutAllocatorRewind = 0;
+            m_CullingJobReleaseDependency.Complete();
+            m_CullingJobReleaseDependency = default;
+            m_ReleaseDependency.Complete();
+            m_ReleaseDependency = default;
+            m_ThreadLocalAllocators.Rewind();
+            m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind = 0;
         }
 
         // This function does only return a meaningful IncludeExcludeListFilter object when called from a BRG culling callback.
@@ -1496,174 +1489,162 @@ namespace Unity.Rendering
 #endif
         }
 
-        [BurstCompile]
-        private static void PerformCulling(
-            ref JobHandle result,
-            BatchCullingContext* cullingContext,
-            ref EntityQuery entitiesGraphicsRenderedQueryRO,
-            ref EntityQuery cullingJobDependencyGroup,
-            ref EntityQuery lodSelectGroup,
-            ref JobHandle cullingJobDependency,
-            ref JobHandle cullingJobReleaseDependency,
-            ref JobHandle releaseDependency,
-            ref JobHandle LODDependency,
-            ref NativeParallelHashMap<int, BRGRenderMeshArray> brgRenderMeshArrays,
-            ref NativeParallelHashMap<int, BatchFilterSettings> filterSettings,
-            ref BatchCullingOutput cullingOutput,
-            ref ThreadLocalAllocator threadLocalAllocators,
-            SystemState* systemState,
-            ref int numberOfCullingPassesAccumulatedWithoutAllocatorRewind,
-            ref uint lastSystemVersionAtLastUpdate,
-            ref bool resetLod,
-            ref LODGroupExtensions.LODParams prevLODParams,
-            ref float3 prevCameraPos,
-            ref float prevLodDistanceScale,
-            ref NativeList<byte> forceLowLOD,
-            ref IncludeExcludeListFilter includeExcludeListFilter
-            #if UNITY_EDITOR
-            ,
-            ref EntitiesGraphicsPerThreadStats* perThreadStats,
-            ref float camMoveDistance
-            #endif
-            )
+        private JobHandle OnPerformCulling(BatchRendererGroup rendererGroup, BatchCullingContext cullingContext, BatchCullingOutput cullingOutput, IntPtr userContext)
         {
-            var chunkCount = entitiesGraphicsRenderedQueryRO.CalculateChunkCountWithoutFiltering();
+            Profiler.BeginSample("OnPerformCulling");
 
-            if (chunkCount == 0 || !systemState->ShouldRunSystem())
+            var chunkCount = m_EntitiesGraphicsRenderedQueryRO.CalculateChunkCountWithoutFiltering();
+
+            if (chunkCount == 0 || !ShouldRunSystem())
             {
-                result = cullingJobDependency;
-                return;
+                Profiler.EndSample();
+                return default;
+            }
+
+            IncludeExcludeListFilter includeExcludeListFilter = GetPickingIncludeExcludeListFilterForCurrentCullingCallback(EntityManager, cullingContext);
+
+            // If inclusive filtering is enabled and we know there are no included entities,
+            // we can skip all the work because we know that the result will be nothing.
+            if (includeExcludeListFilter.IsIncludeEnabled && includeExcludeListFilter.IsIncludeEmpty)
+            {
+                includeExcludeListFilter.Dispose();
+                Profiler.EndSample();
+                return m_CullingJobDependency;
             }
 
             //if we have accumulated too many culling passes without rewinding the allocator in system update, force the rewind here. Otherwise when system update doesn't tick but culling does, we might run out of memory
-            if (numberOfCullingPassesAccumulatedWithoutAllocatorRewind == kMaxCullingPassesWithoutAllocatorRewind)
+            if (m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind == kMaxCullingPassesWithoutAllocatorRewind)
             {
-                RewindThreadLocalAllocator(ref cullingJobReleaseDependency, ref releaseDependency, ref threadLocalAllocators, ref numberOfCullingPassesAccumulatedWithoutAllocatorRewind);
+                RewindThreadLocalAllocator();
             }
-            ++numberOfCullingPassesAccumulatedWithoutAllocatorRewind;
+            ++m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind;
 
-            var lodParams = LODGroupExtensions.CalculateLODParams(cullingContext->lodParameters);
+            var lodParams = LODGroupExtensions.CalculateLODParams(cullingContext.lodParameters);
 
             JobHandle cullingDependency;
-            resetLod = resetLod || (!lodParams.Equals(prevLODParams));
+            var resetLod = m_ResetLod || (!lodParams.Equals(m_PrevLODParams));
             if (resetLod)
             {
                 // Depend on all component ata we access + previous jobs since we are writing to a single
                 // m_ChunkInstanceLodEnableds array.
-                var lodJobDependency = JobHandle.CombineDependencies(cullingJobDependency,
-                    cullingJobDependencyGroup.GetDependency());
+                var lodJobDependency = JobHandle.CombineDependencies(m_CullingJobDependency,
+                    m_CullingJobDependencyGroup.GetDependency());
 
-                float cameraMoveDistance = math.length(prevCameraPos - lodParams.cameraPos);
-                var lodDistanceScaleChanged = lodParams.distanceScale != prevLodDistanceScale;
+                float cameraMoveDistance = math.length(m_PrevCameraPos - lodParams.cameraPos);
+                var lodDistanceScaleChanged = lodParams.distanceScale != m_PrevLodDistanceScale;
 
 #if UNITY_EDITOR
                 // Record this separately in the editor for stats display
-                camMoveDistance = cameraMoveDistance;
+                m_CamMoveDistance = cameraMoveDistance;
 #endif
 
                 var selectLodEnabledJob = new SelectLodEnabled
                 {
-                    ForceLowLOD = forceLowLOD,
+                    ForceLowLOD = m_ForceLowLOD,
                     LODParams = lodParams,
-                    RootLODRanges = systemState->GetComponentTypeHandle<RootLODRange>(true),
-                    RootLODReferencePoints = systemState->GetComponentTypeHandle<RootLODWorldReferencePoint>(true),
-                    LODRanges = systemState->GetComponentTypeHandle<LODRange>(true),
-                    LODReferencePoints = systemState->GetComponentTypeHandle<LODWorldReferencePoint>(true),
-                    EntitiesGraphicsChunkInfo = systemState->GetComponentTypeHandle<EntitiesGraphicsChunkInfo>(),
-                    ChunkHeader = systemState->GetComponentTypeHandle<ChunkHeader>(),
+                    RootLODRanges = GetComponentTypeHandle<RootLODRange>(true),
+                    RootLODReferencePoints = GetComponentTypeHandle<RootLODWorldReferencePoint>(true),
+                    LODRanges = GetComponentTypeHandle<LODRange>(true),
+                    LODReferencePoints = GetComponentTypeHandle<LODWorldReferencePoint>(true),
+                    EntitiesGraphicsChunkInfo = GetComponentTypeHandle<EntitiesGraphicsChunkInfo>(),
+                    ChunkHeader = GetComponentTypeHandle<ChunkHeader>(),
                     CameraMoveDistanceFixed16 =
                         Fixed16CamDistance.FromFloatCeil(cameraMoveDistance * lodParams.distanceScale),
                     DistanceScale = lodParams.distanceScale,
                     DistanceScaleChanged = lodDistanceScaleChanged,
                     MaximumLODLevelMask = 1 << QualitySettings.maximumLODLevel,
 #if UNITY_EDITOR
-                    Stats = perThreadStats,
+                    Stats = m_PerThreadStats,
 #endif
                 };
 
-                cullingDependency = LODDependency = selectLodEnabledJob.ScheduleParallel(lodSelectGroup, lodJobDependency);
+                cullingDependency = m_LODDependency = selectLodEnabledJob.ScheduleParallel(m_LodSelectGroup, lodJobDependency);
 
-                prevLODParams = lodParams;
-                prevLodDistanceScale = lodParams.distanceScale;
-                prevCameraPos = lodParams.cameraPos;
-                resetLod = false;
+                m_PrevLODParams = lodParams;
+                m_PrevLodDistanceScale = lodParams.distanceScale;
+                m_PrevCameraPos = lodParams.cameraPos;
+                m_ResetLod = false;
 #if UNITY_EDITOR
 #if UNITY_2022_2_14F1_OR_NEWER
                 int maxThreadCount = JobsUtility.ThreadIndexCount;
 #else
                 int maxThreadCount = JobsUtility.MaxJobThreadCount;
 #endif
-                UnsafeUtility.MemClear(perThreadStats, sizeof(EntitiesGraphicsPerThreadStats) * maxThreadCount);
+                UnsafeUtility.MemClear(m_PerThreadStats, sizeof(EntitiesGraphicsPerThreadStats) * maxThreadCount);
 #endif
             }
             else
             {
                 // Depend on all component data we access + previous m_LODDependency job
                 cullingDependency = JobHandle.CombineDependencies(
-                    LODDependency,
-                    cullingJobDependency,
-                    cullingJobDependencyGroup.GetDependency());
+                    m_LODDependency,
+                    m_CullingJobDependency,
+                    m_CullingJobDependencyGroup.GetDependency());
             }
 
             var visibilityItems = new IndirectList<ChunkVisibilityItem>(
                 chunkCount,
-                threadLocalAllocators.GeneralAllocator);
+                m_ThreadLocalAllocators.GeneralAllocator);
 
-            bool cullLightmapShadowCasters = (cullingContext->cullingFlags & BatchCullingFlags.CullLightmappedShadowCasters) != 0;
+            bool cullLightmapShadowCasters = (cullingContext.cullingFlags & BatchCullingFlags.CullLightmappedShadowCasters) != 0;
 
             var frustumCullingJob = new FrustumCullingJob
             {
-                Splits = CullingSplits.Create(cullingContext, QualitySettings.shadowProjection, threadLocalAllocators.GeneralAllocator->Handle),
-                CullingViewType = cullingContext->viewType,
-                EntitiesGraphicsChunkInfo = systemState->GetComponentTypeHandle<EntitiesGraphicsChunkInfo>(true),
-                ChunkWorldRenderBounds = systemState->GetComponentTypeHandle<ChunkWorldRenderBounds>(true),
-                BoundsComponent = systemState->GetComponentTypeHandle<WorldRenderBounds>(true),
-                EntityHandle = systemState->GetEntityTypeHandle(),
+                Splits = CullingSplits.Create(&cullingContext, QualitySettings.shadowProjection, m_ThreadLocalAllocators.GeneralAllocator->Handle),
+                CullingViewType = cullingContext.viewType,
+                EntitiesGraphicsChunkInfo = GetComponentTypeHandle<EntitiesGraphicsChunkInfo>(true),
+                ChunkWorldRenderBounds = GetComponentTypeHandle<ChunkWorldRenderBounds>(true),
+                BoundsComponent = GetComponentTypeHandle<WorldRenderBounds>(true),
+                EntityHandle = GetEntityTypeHandle(),
                 IncludeExcludeListFilter = includeExcludeListFilter,
                 VisibilityItems = visibilityItems,
-                ThreadLocalAllocator = threadLocalAllocators,
+                ThreadLocalAllocator = m_ThreadLocalAllocators,
                 CullLightmapShadowCasters = cullLightmapShadowCasters,
-                LightMaps = systemState->GetSharedComponentTypeHandle<LightMaps>(),
+                LightMaps = GetSharedComponentTypeHandle<LightMaps>(),
 #if UNITY_EDITOR
-                Stats = perThreadStats,
+                Stats = m_PerThreadStats,
 #endif
             };
 
-            var frustumCullingJobHandle = frustumCullingJob.ScheduleParallel(entitiesGraphicsRenderedQueryRO, cullingDependency);
+            var frustumCullingJobHandle = frustumCullingJob.ScheduleParallel(m_EntitiesGraphicsRenderedQueryRO, cullingDependency);
             var disposeFrustumCullingHandle = frustumCullingJob.IncludeExcludeListFilter.Dispose(frustumCullingJobHandle);
-
-            cullingJobDependency = JobHandle.CombineDependencies(frustumCullingJobHandle, cullingJobDependency);
-            cullingJobDependencyGroup.AddDependency(frustumCullingJobHandle);
+            DidScheduleCullingJob(frustumCullingJobHandle);
 
             // TODO: Dynamically estimate this based on past frames
             int binCountEstimate = 1;
             var chunkDrawCommandOutput = new ChunkDrawCommandOutput(
                 binCountEstimate,
-                threadLocalAllocators,
+                m_ThreadLocalAllocators,
                 cullingOutput);
+
+            // To be able to access the material/mesh IDs, we need access to the registered material/mesh
+            // arrays. If we can't get them, then we simply skip in those cases.
+            var brgRenderMeshArrays =
+                World.GetExistingSystemManaged<RegisterMaterialsAndMeshesSystem>()?.BRGRenderMeshArrays
+                ?? new NativeParallelHashMap<int, BRGRenderMeshArray>();
 
             var emitDrawCommandsJob = new EmitDrawCommandsJob
             {
                 VisibilityItems = visibilityItems,
-                EntitiesGraphicsChunkInfo = systemState->GetComponentTypeHandle<EntitiesGraphicsChunkInfo>(true),
-                MaterialMeshInfo = systemState->GetComponentTypeHandle<MaterialMeshInfo>(true),
-                LocalToWorld = systemState->GetComponentTypeHandle<LocalToWorld>(true),
-                DepthSorted = systemState->GetComponentTypeHandle<DepthSorted_Tag>(true),
-                DeformedMeshIndex = systemState->GetComponentTypeHandle<DeformedMeshIndex>(true),
-                ProceduralMotion = systemState->GetComponentTypeHandle<PerVertexMotionVectors_Tag>(true),
-                RenderFilterSettings = systemState->GetSharedComponentTypeHandle<RenderFilterSettings>(),
-                FilterSettings = filterSettings,
-                CullingLayerMask = cullingContext->cullingLayerMask,
-                LightMaps = systemState->GetSharedComponentTypeHandle<LightMaps>(),
-                RenderMeshArray = systemState->GetSharedComponentTypeHandle<RenderMeshArray>(),
+                EntitiesGraphicsChunkInfo = GetComponentTypeHandle<EntitiesGraphicsChunkInfo>(true),
+                MaterialMeshInfo = GetComponentTypeHandle<MaterialMeshInfo>(true),
+                LocalToWorld = GetComponentTypeHandle<LocalToWorld>(true),
+                DepthSorted = GetComponentTypeHandle<DepthSorted_Tag>(true),
+                DeformedMeshIndex = GetComponentTypeHandle<DeformedMeshIndex>(true),
+                ProceduralMotion = GetComponentTypeHandle<PerVertexMotionVectors_Tag>(true),
+                RenderFilterSettings = GetSharedComponentTypeHandle<RenderFilterSettings>(),
+                FilterSettings = m_FilterSettings,
+                CullingLayerMask = cullingContext.cullingLayerMask,
+                LightMaps = GetSharedComponentTypeHandle<LightMaps>(),
+                RenderMeshArray = GetSharedComponentTypeHandle<RenderMeshArray>(),
                 BRGRenderMeshArrays = brgRenderMeshArrays,
 #if UNITY_EDITOR
-                EditorDataComponentHandle = systemState->GetSharedComponentTypeHandle<EditorRenderData>(),
+                EditorDataComponentHandle = GetSharedComponentTypeHandle<EditorRenderData>(),
 #endif
                 DrawCommandOutput = chunkDrawCommandOutput,
-                SceneCullingMask = cullingContext->sceneCullingMask,
+                SceneCullingMask = cullingContext.sceneCullingMask,
                 CameraPosition = lodParams.cameraPos,
-                LastSystemVersion = lastSystemVersionAtLastUpdate,
+                LastSystemVersion = m_LastSystemVersionAtLastUpdate,
 
                 ProfilerEmitChunk = new ProfilerMarker("EmitChunk"),
             };
@@ -1704,26 +1685,26 @@ namespace Unity.Rendering
             {
                 DrawCommandOutput = chunkDrawCommandOutput,
 #if UNITY_EDITOR
-                Stats = perThreadStats,
-                ViewType = cullingContext->viewType,
+                Stats = m_PerThreadStats,
+                ViewType = cullingContext.viewType,
 #endif
             };
 
             var generateDrawRangesJob = new GenerateDrawRangesJob
             {
                 DrawCommandOutput = chunkDrawCommandOutput,
-                FilterSettings = filterSettings,
+                FilterSettings = m_FilterSettings,
 #if UNITY_EDITOR
-                Stats = perThreadStats,
+                Stats = m_PerThreadStats,
 #endif
             };
 
-            var emitDrawCommandsDependency = emitDrawCommandsJob.ScheduleWithIndirectList(visibilityItems, 1, cullingJobDependency);
+            var emitDrawCommandsDependency = emitDrawCommandsJob.ScheduleWithIndirectList(visibilityItems, 1, m_CullingJobDependency);
 
             var collectGlobalBinsDependency =
                 chunkDrawCommandOutput.BinCollector.ScheduleFinalize(emitDrawCommandsDependency);
             var sortBinsDependency = DrawBinSort.ScheduleBinSort(
-                threadLocalAllocators.GeneralAllocator,
+                m_ThreadLocalAllocators.GeneralAllocator,
                 chunkDrawCommandOutput.SortedBins,
                 chunkDrawCommandOutput.UnsortedBins,
                 collectGlobalBinsDependency);
@@ -1770,77 +1751,16 @@ namespace Unity.Rendering
             DebugDrawCommands(expansionDependency, cullingOutput);
 #endif
 
-            cullingJobReleaseDependency = JobHandle.CombineDependencies(
-                cullingJobReleaseDependency,
+            m_CullingJobReleaseDependency = JobHandle.CombineDependencies(
+                m_CullingJobReleaseDependency,
                 disposeFrustumCullingHandle,
                 chunkDrawCommandOutput.Dispose(expansionDependency));
 
-            cullingJobDependency = JobHandle.CombineDependencies(emitDrawCommandsDependency, cullingJobDependency);
-            cullingJobDependency = JobHandle.CombineDependencies(expansionDependency, cullingJobDependency);
-            cullingJobDependencyGroup.AddDependency(expansionDependency);
-            result =  cullingJobDependency;
-        }
-
-        private JobHandle OnPerformCulling(BatchRendererGroup rendererGroup, BatchCullingContext cullingContext, BatchCullingOutput cullingOutput, IntPtr userContext)
-        {
-            Profiler.BeginSample("OnPerformCulling");
-            var chunkCount = m_EntitiesGraphicsRenderedQueryRO.CalculateChunkCountWithoutFiltering();
-
-            if (chunkCount == 0 || !ShouldRunSystem())
-            {
-                Profiler.EndSample();
-                return m_CullingJobDependency;
-            }
-
-            IncludeExcludeListFilter includeExcludeListFilter = GetPickingIncludeExcludeListFilterForCurrentCullingCallback(EntityManager, cullingContext);
-
-            // If inclusive filtering is enabled and we know there are no included entities,
-            // we can skip all the work because we know that the result will be nothing.
-            if (includeExcludeListFilter.IsIncludeEnabled && includeExcludeListFilter.IsIncludeEmpty)
-            {
-                includeExcludeListFilter.Dispose();
-                Profiler.EndSample();
-                return m_CullingJobDependency;
-            }
-
-            var brgRenderMeshArrays =
-                World.GetExistingSystemManaged<RegisterMaterialsAndMeshesSystem>()?.BRGRenderMeshArrays
-                ?? new NativeParallelHashMap<int, BRGRenderMeshArray>();
-
-            JobHandle result = default;
-
-            PerformCulling(
-                ref result,
-                &cullingContext,
-                ref m_EntitiesGraphicsRenderedQueryRO,
-                ref m_CullingJobDependencyGroup,
-                ref m_LodSelectGroup,
-                ref m_CullingJobDependency,
-                ref m_CullingJobReleaseDependency,
-                ref m_ReleaseDependency,
-                ref m_LODDependency,
-                ref brgRenderMeshArrays,
-                ref m_FilterSettings,
-                ref cullingOutput,
-                ref m_ThreadLocalAllocators,
-                CheckedState(),
-                ref m_NumberOfCullingPassesAccumulatedWithoutAllocatorRewind,
-                ref m_LastSystemVersionAtLastUpdate,
-                ref m_ResetLod,
-                ref m_PrevLODParams,
-                ref m_PrevCameraPos,
-                ref m_PrevLodDistanceScale,
-                ref m_ForceLowLOD,
-                ref includeExcludeListFilter
-                #if UNITY_EDITOR
-                ,
-                ref m_PerThreadStats,
-                ref m_CamMoveDistance
-                #endif
-                );
+            DidScheduleCullingJob(emitDrawCommandsDependency);
+            DidScheduleCullingJob(expansionDependency);
 
             Profiler.EndSample();
-            return result;
+            return m_CullingJobDependency;
         }
 
         private void DebugDrawCommands(JobHandle drawCommandsDependency, BatchCullingOutput cullingOutput)
@@ -2072,7 +1992,7 @@ namespace Unity.Rendering
                 FilterSettings = m_FilterSettings,
                 DefaultFilterSettings = MakeFilterSettings(RenderFilterSettings.Default),
             }.ScheduleParallel(m_ChangedTransformQuery, entitiesGraphicsCompleted);
-            m_UpdateJobDependency = JobHandle.CombineDependencies(drawCommandFlagsUpdated, m_UpdateJobDependency);
+            DidScheduleUpdateJob(drawCommandFlagsUpdated);
 
             // TODO: Need to wait for new chunk updating to complete, so there are no more jobs writing to the bitfields.
             entitiesGraphicsCompleted.Complete();
@@ -2583,6 +2503,10 @@ namespace Unity.Rendering
             m_CullingJobDependencyGroup.AddDependency(job);
         }
 
+        private void DidScheduleUpdateJob(JobHandle job)
+        {
+            m_UpdateJobDependency = JobHandle.CombineDependencies(job, m_UpdateJobDependency);
+        }
 
         private void StartUpdate(int numOperations, int totalUploadBytes, int biggestUploadBytes)
         {

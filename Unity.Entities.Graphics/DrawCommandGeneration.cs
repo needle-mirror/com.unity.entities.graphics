@@ -117,15 +117,11 @@ namespace Unity.Rendering
         }
     }
 
-    [BurstCompile]
     internal unsafe struct ThreadLocalAllocator
     {
         public const int kInitialSize = 1024 * 1024;
         public const Allocator kAllocator = Allocator.Persistent;
         public static readonly int NumThreads = ChunkDrawCommandOutput.NumThreads;
-
-        private ProfilerMarker rewindAllocatorsMarker;
-        private ProfilerMarker rewindMarker;
 
         [StructLayout(LayoutKind.Explicit, Size = JobsUtility.CacheLineSize)]
         public unsafe struct PaddedAllocator
@@ -167,26 +163,23 @@ namespace Unity.Rendering
                 else
                     Allocators.ElementAt(i).Initialize(1);
             }
-
-            rewindAllocatorsMarker = new ProfilerMarker("RewindAllocators");
-            rewindMarker = new ProfilerMarker("Rewind");
         }
 
         public void Rewind()
         {
-            rewindAllocatorsMarker.Begin();
+            Profiler.BeginSample("RewindAllocators");
             for (int i = 0; i < NumThreads; ++i)
             {
                 ref var allocator = ref Allocators.ElementAt(i);
                 if (allocator.UsedSinceRewind)
                 {
-                    rewindMarker.Begin();
+                    Profiler.BeginSample("Rewind");
                     Allocators.ElementAt(i).Allocator.Allocator.Rewind();
-                    rewindMarker.End();
+                    Profiler.EndSample();
                 }
                 allocator.UsedSinceRewind = false;
             }
-            rewindAllocatorsMarker.End();
+            Profiler.EndSample();
 
         }
 

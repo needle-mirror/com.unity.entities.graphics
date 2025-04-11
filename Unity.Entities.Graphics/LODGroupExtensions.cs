@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -30,7 +29,6 @@ namespace Unity.Rendering
             /// <summary>
             /// Indicates whether the camera is in orthographic mode.
             /// </summary>
-            [MarshalAs(UnmanagedType.U1)]
             public bool   isOrtho;
 
             /// <summary>

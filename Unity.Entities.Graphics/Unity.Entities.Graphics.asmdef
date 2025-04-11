@@ -50,6 +50,11 @@
             "name": "Unity",
             "expression": "2022.2.14f1",
             "define": "UNITY_2022_2_14F1_OR_NEWER"
+        },
+        {
+          "name": "com.unity.render-pipelines.core",
+          "expression": "16.9.9",
+          "define": "SRP_17_0_0_OR_NEWER"
         }
     ],
     "noEngineReferences": false

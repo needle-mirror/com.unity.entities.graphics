@@ -2,13 +2,11 @@
 
 Entities Graphics supports per-entity overrides of various HDRP and URP material properties as well as overrides for custom Shader Graphs. You can write C#/Burst code to setup and animate material override values at runtime.
 
-## Built-in Material overrides
+# Built-in Material overrides
 
 Entities Graphics contains a built-in library of IComponentData components that you can add to your entities to override their material properties.
 
-To override color properties, make sure the values are in linear color space. Entities Graphics can't automatically convert color values from gamma space to linear space.
-
-### Supported HDRP Material overrides
+**Supported HDRP Material overrides:**
 
 - AlphaCutoff
 - AORemapMax
@@ -28,7 +26,7 @@ To override color properties, make sure the values are in linear color space. En
 - ThicknessRemap
 - UnlitColor (HDRP/Unlit)
 
-### Supported URP Material overrides
+**Supported URP Material overrides:**
 
 - BaseColor
 - BumpScale

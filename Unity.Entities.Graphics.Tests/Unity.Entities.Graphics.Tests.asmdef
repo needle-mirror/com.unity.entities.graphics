@@ -54,6 +54,11 @@
             "name": "com.unity.tiny",
             "expression": "0.21.9",
             "define": "TINY_0_22_0_OR_NEWER"
+        },
+        {
+          "name": "com.unity.render-pipelines.core",
+          "expression": "16.9.9",
+          "define": "SRP_17_0_0_OR_NEWER"
         }
     ],
     "noEngineReferences": false

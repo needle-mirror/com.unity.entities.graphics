@@ -13,9 +13,9 @@ The following graphics related companion components are supported by Entities Gr
 - DecalProjector (HDRP)
 - LocalVolumetricFog (HDRP)
 - PlanarReflectionProbe (HDRP)
-- ProbeVolume (HDRP)
 - Volume
 - Volume + Sphere/Box/Capsule/MeshCollider pair (local volumes)
+- Adaptive Probe Volume (Unity 6 and onwards)
 
 Note that the conversion of Camera (+HDAdditionalCameraData, UniversalAdditionalCameraData) components is disabled by default, because the scene main camera can't be a companion component entity. To enable this conversion, add **HYBRID_ENTITIES_CAMERA_CONVERSION** define to your project settings.
 

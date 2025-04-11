@@ -30,7 +30,7 @@ namespace Unity.Rendering
             // at runtime.
             var bakingOutput = authoring.bakingOutput;
             AddComponent(entity, new LightBakingOutputData {Value = bakingOutput});
-#endif
+#endif // UNITY_EDITOR
         }
     }
 
@@ -136,7 +136,7 @@ namespace Unity.Rendering
         }
     }
 
-#endif
+#endif // SRP_10_0_0_OR_NEWER
 
 #if HDRP_10_0_0_OR_NEWER
     class HDAdditionalLightDataCompanionBaker : Baker<HDAdditionalLightData>
@@ -156,7 +156,7 @@ namespace Unity.Rendering
                     AddComponentObject(entity, authoring);
 #else
                 AddComponentObject(entity, authoring);
-#endif
+#endif // UNITY_EDITOR
             }
         }
     }
@@ -190,18 +190,7 @@ namespace Unity.Rendering
             AddComponentObject(entity, authoring);
         }
     }
-#if PROBEVOLUME_CONVERSION
-    class ProbeVolumeCompanionBaker : Baker<ProbeVolume>
-    {
-        public override void Bake(ProbeVolume authoring)
-        {
-            // Setting companions to Dynamic
-            var entity = GetEntity(TransformUsageFlags.Dynamic);
-            AddComponentObject(entity, authoring);
-        }
-    }
-#endif
-#endif
+#endif // HDRP_10_0_0_OR_NEWER
 
 #if URP_10_0_0_OR_NEWER
     class UniversalAdditionalLightDataCompanionBaker : Baker<UniversalAdditionalLightData>
@@ -222,11 +211,11 @@ namespace Unity.Rendering
                     AddComponentObject(entity, authoring);
 #else
             AddComponentObject(entity, authoring);
-#endif
+#endif // UNITY_EDITOR
             }
         }
     }
-#endif
+#endif // URP_10_0_0_OR_NEWER
 
 #if HDRP_10_0_0_OR_NEWER
     class HdrpDecalProjectorCompanionBaker : Baker<UnityEngine.Rendering.HighDefinition.DecalProjector>
@@ -238,7 +227,7 @@ namespace Unity.Rendering
             AddComponentObject(entity, authoring);
         }
     }
-#endif
+#endif // HDRP_10_0_0_OR_NEWER
 #if URP_10_0_0_OR_NEWER
     class UrpDecalProjectorCompanionBaker : Baker<UnityEngine.Rendering.Universal.DecalProjector>
     {
@@ -249,7 +238,7 @@ namespace Unity.Rendering
             AddComponentObject(entity, authoring);
         }
     }
-#endif
+#endif // URP_10_0_0_OR_NEWER
 
 #if HYBRID_ENTITIES_CAMERA_CONVERSION
     class CameraCompanionBaker : Baker<Camera>
@@ -272,7 +261,7 @@ namespace Unity.Rendering
             AddComponentObject(entity, authoring);
         }
     }
-#endif
+#endif // HDRP_10_0_0_OR_NEWER
 
 #if URP_10_0_0_OR_NEWER
     class UniversalAdditionalCameraDataCompanionBaker : Baker<UniversalAdditionalCameraData>
@@ -284,10 +273,33 @@ namespace Unity.Rendering
             AddComponentObject(entity, authoring);
         }
     }
-#endif
+#endif // URP_10_0_0_OR_NEWER
 
-#endif
-#endif
+#endif // HYBRID_ENTITIES_CAMERA_CONVERSION
 
-#endif
+#if SRP_17_0_0_OR_NEWER
+    class AdaptiveProbeVolumeCompanionBaker : Baker<ProbeVolume>
+    {
+        public override void Bake(ProbeVolume authoring)
+        {
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
+        }
+    }
+
+    class ProbeVolumePerSceneDataCompanionBaker : Baker<ProbeVolumePerSceneData>
+    {
+        public override void Bake(ProbeVolumePerSceneData authoring)
+        {
+            // Setting companions to Dynamic
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, authoring);
+        }
+    }
+#endif // SRP_17_0_0_OR_NEWER
+
+#endif // !TINY_0_22_0_OR_NEWER
+
+#endif // !UNITY_DISABLE_MANAGED_COMPONENTS
 }

@@ -4,14 +4,22 @@ uid: changelog
 
 # Changelog
 
-## [1.4.9-exp.2] - 2025-03-07
+
+## [1.4.12] - 2025-04-11
+
+### Added
+
+* Added support for the Adaptive Probe Volume component in the Companion GameObject system.
 
 ### Changed
 
-* Optimized code in OnPerformCulling to use Burst compilation
+* The minimum supported editor version is now 2022.3.20f1
+* Updated the `com.unity.entities` dependency to version `1.3.14`
+* Updated `com.unity.render-pipelines.core` to `14.0.10`
 
 ### Fixed
 
+* OnPerformCulling does an early out when handling empty worlds
 * Fixed a rare null reference issue when using a motion vector pass when renderers had null materials
 
 
@@ -20,13 +28,6 @@ uid: changelog
 ### Fixed
 
 * Fixed an issue where texture references would be lost if a texture was created during bake time and assigned to a material, while making use of SceneSections.
-
-
-## [1.4.7] - 2025-02-17
-
-### Fixed
-
-* OnPerformCulling does an early out when handling empty worlds
 
 
 ## [1.4.5] - 2024-11-08
