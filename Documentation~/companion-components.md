@@ -17,6 +17,8 @@ The following graphics related companion components are supported by Entities Gr
 - Volume + Sphere/Box/Capsule/MeshCollider pair (local volumes)
 - Adaptive Probe Volume (Unity 6 and onwards)
 
+If a MonoBehaviour component is attached to a GameObject and that component is **not** part of the list above, then that component will be stripped from the GameObject by the Companion components system and will no longer exist after conversion. Also note that the transform hierarchy a GameObject is part of will not be maintained by the Companion components system. All converted components are recreated as root GameObjects.
+
 Note that the conversion of Camera (+HDAdditionalCameraData, UniversalAdditionalCameraData) components is disabled by default, because the scene main camera can't be a companion component entity. To enable this conversion, add **HYBRID_ENTITIES_CAMERA_CONVERSION** define to your project settings.
 
 Unity updates the transform of a companion component entity whenever it updates the LocalToWorld component. Parenting a companion component entity to a standard entity is supported. Companion component entities can be included in subscenes. The managed component is serialized in the subscene.

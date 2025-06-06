@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.4.12",
+  "version": "1.4.13-pre.3",
   "unity": "2022.3",
   "unityRelease": "20f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.3.14",
+    "com.unity.entities": "1.4.0-pre.3",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.10"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Added\n\n* Added support for the Adaptive Probe Volume component in the Companion GameObject system.\n\n### Changed\n\n* The minimum supported editor version is now 2022.3.20f1\n* Updated the `com.unity.entities` dependency to version `1.3.14`\n* Updated `com.unity.render-pipelines.core` to `14.0.10`\n\n### Fixed\n\n* OnPerformCulling does an early out when handling empty worlds\n* Fixed a rare null reference issue when using a motion vector pass when renderers had null materials"
+    "changelog": "### Changed\n\n* Updated the `com.unity.entities` dependency to version `1.4.0-pre.3`"
   },
   "upmCi": {
-    "footprint": "715751294ecc4b6c6e605682a71d51cbddb7634a"
+    "footprint": "e3b65deeb94da3bc22ac40d1a1ba3e76ca6d74b1"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.4/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "2520fc806449bf4c278c9031eb21f0a6aeccda46"
+    "revision": "1d68bdee543beb5e992946669847cdae6fd48d36"
   }
 }
