@@ -4,6 +4,14 @@ uid: changelog
 
 # Changelog
 
+## [1.4.15] - 2025-09-05
+
+
+### Changed
+
+* Updated the `com.unity.entities` dependency to version `1.4.2`
+
+
 ## [1.4.13-pre.4] - 2025-07-11
 
 ### Changed
