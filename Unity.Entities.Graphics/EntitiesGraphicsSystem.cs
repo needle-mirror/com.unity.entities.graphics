@@ -872,6 +872,7 @@ namespace Unity.Rendering
 
         NativeParallelMultiHashMap<int, MaterialPropertyType> m_NameIDToMaterialProperties;
         NativeParallelHashMap<int, MaterialPropertyType> m_TypeIndexToMaterialProperty;
+        private PresentationSystemGroup m_presentationSystemGroup;
 
         static Dictionary<Type, NamedPropertyMapping> s_TypeToPropertyMappings = new Dictionary<Type, NamedPropertyMapping>();
 
@@ -1095,6 +1096,7 @@ namespace Unity.Rendering
                 m_BatchRendererGroup.SetPickingMaterial(m_PickingMaterial);
             }
 #endif
+            m_presentationSystemGroup = World.GetExistingSystemManaged<PresentationSystemGroup>();
         }
 
         internal static readonly bool UseConstantBuffers = EntitiesGraphicsUtils.UseHybridConstantBufferMode();
@@ -1784,6 +1786,12 @@ namespace Unity.Rendering
         private JobHandle OnPerformCulling(BatchRendererGroup rendererGroup, BatchCullingContext cullingContext, BatchCullingOutput cullingOutput, IntPtr userContext)
         {
             Profiler.BeginSample("OnPerformCulling");
+            if (!m_presentationSystemGroup.Enabled)
+            {
+                Profiler.EndSample();
+                return m_CullingJobDependency;
+            }
+
             var chunkCount = m_EntitiesGraphicsRenderedQueryRO.CalculateChunkCountWithoutFiltering();
 
             if (chunkCount == 0 || !ShouldRunSystem())

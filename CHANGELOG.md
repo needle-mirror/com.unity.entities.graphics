@@ -4,8 +4,19 @@ uid: changelog
 
 # Changelog
 
-## [1.4.15] - 2025-09-05
+## [1.4.16] - 2025-10-17
 
+### Changed
+
+* Updated the `com.unity.entities` dependency to version `1.4.3`
+
+### Fixed
+
+* Added proper handling for disabling the PresentationSystemGroup
+
+
+
+## [1.4.15] - 2025-09-05
 
 ### Changed
 
