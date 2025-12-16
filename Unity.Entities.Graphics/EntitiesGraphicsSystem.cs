@@ -692,6 +692,49 @@ namespace Unity.Rendering
         }
     }
 
+#if UNITY_EDITOR
+    [UnityEditor.InitializeOnLoad]
+#endif
+    internal static class EntitiesGraphicsSystemUtility
+    {
+#if UNITY_EDITOR
+        static EntitiesGraphicsSystemUtility()
+        {
+            EditorInitializeOnLoadMethod();
+        }
+#endif
+
+        static unsafe void RootsHandlerDelegate(IntPtr state)
+        {
+            // Scan worlds for all EntitiesGraphicsSystems and send their registered assets to the GC for referencing.
+            foreach (var world in World.s_AllWorlds)
+            {
+                var egsSystem = world.GetExistingSystemManaged<EntitiesGraphicsSystem>();
+                if (egsSystem != null)
+                {
+                    var registeredAssets = egsSystem.registeredAssets;
+                    if (registeredAssets.Count == 0)
+                        return;
+
+                    using var instanceIDs = registeredAssets.ToNativeArray(Allocator.Temp);
+#if (UNITY_2022_3 && UNITY_2022_3_43F1_OR_NEWER) || (UNITY_6000 && UNITY_6000_0_16F1_OR_NEWER)
+                    UnityObjectRefUtility.MarkInstanceIDsAsRootForEntitiesAssetGC((IntPtr)instanceIDs.GetUnsafePtr(), instanceIDs.Length, state);
+#endif
+                }
+            }
+        }
+
+#if !UNITY_EDITOR
+        [RuntimeInitializeOnLoadMethod]
+#endif
+        static void EditorInitializeOnLoadMethod()
+        {
+#if (UNITY_2022_3 && UNITY_2022_3_43F1_OR_NEWER) || (UNITY_6000 && UNITY_6000_0_16F1_OR_NEWER)
+            UnityObjectRefUtility.RegisterAdditionalRootsHandlerForEntitiesAssetGC(RootsHandlerDelegate);
+#endif
+        }
+    }
+
     /// <summary>
     /// Renders all entities that contain both RenderMesh and LocalToWorld components.
     /// </summary>
@@ -777,6 +820,11 @@ namespace Unity.Rendering
         private SortedSet<int> m_SortedBatchIds;
 
         private NativeList<ValueBlitDescriptor> m_ValueBlits;
+
+        // Hold a collection of registered materials and meshes so they don't get destroyed if they are not referenced
+        // outside of EntitiesGraphicsSystem.
+        private NativeHashSet<int> m_RegisteredAssets;
+        internal NativeHashSet<int>.ReadOnly registeredAssets => m_RegisteredAssets.AsReadOnly();
 
         // These arrays are parallel and allocated up to kMaxBatchCount. They are indexed by batch indices.
         NativeList<byte> m_ForceLowLOD;
@@ -1056,6 +1104,8 @@ namespace Unity.Rendering
                     }
                 }
             }
+
+            m_RegisteredAssets = new NativeHashSet<int>(128, Allocator.Persistent);
 
             m_GPUPersistentInstanceData = new GraphicsBuffer(
                 GraphicsBuffer.Target.Raw,
@@ -1412,6 +1462,8 @@ namespace Unity.Rendering
             m_ExistingBatchIndices.Dispose();
             m_ValueBlits.Dispose();
             m_ComponentTypeCache.Dispose();
+
+            m_RegisteredAssets.Dispose();
 
             m_SortedBatchIds = null;
 
@@ -2679,26 +2731,64 @@ namespace Unity.Rendering
         /// </summary>
         /// <param name="material">The material instance to register</param>
         /// <returns>Returns the batch material ID</returns>
-        public BatchMaterialID RegisterMaterial(Material material) => m_BatchRendererGroup.RegisterMaterial(material);
+        public BatchMaterialID RegisterMaterial(Material material)
+        {
+            if (!material)
+                return BatchMaterialID.Null;
+
+            BatchMaterialID materialID = m_BatchRendererGroup.RegisterMaterial(material);
+            m_RegisteredAssets.Add(material.GetInstanceID());
+            return materialID;
+        }
 
         /// <summary>
         /// Registers a mesh with the Entities Graphics System.
         /// </summary>
         /// <param name="mesh">Mesh instance to register</param>
         /// <returns>Returns the batch mesh ID</returns>
-        public BatchMeshID RegisterMesh(Mesh mesh) => m_BatchRendererGroup.RegisterMesh(mesh);
+        public BatchMeshID RegisterMesh(Mesh mesh)
+        {
+            if (!mesh)
+                return BatchMeshID.Null;
+
+            BatchMeshID meshID = m_BatchRendererGroup.RegisterMesh(mesh);
+            m_RegisteredAssets.Add(mesh.GetInstanceID());
+            return meshID;
+        }
 
         /// <summary>
         /// Unregisters a material from the Entities Graphics System.
         /// </summary>
-        /// <param name="material">Material ID received from <see cref="RegisterMaterial"/></param>
-        public void UnregisterMaterial(BatchMaterialID material) => m_BatchRendererGroup.UnregisterMaterial(material);
+        /// <param name="materialID">Material ID received from <see cref="RegisterMaterial"/></param>
+        public void UnregisterMaterial(BatchMaterialID materialID)
+        {
+            Material material = m_BatchRendererGroup.GetRegisteredMaterial(materialID);
+            if (material)
+            {
+                m_BatchRendererGroup.UnregisterMaterial(materialID);
+                // Check if this was the last reference to this material in BRG, in which case we can
+                // remove it from the list of referenced assets.
+                if (!m_BatchRendererGroup.GetRegisteredMaterial(materialID))
+                    m_RegisteredAssets.Remove(material.GetInstanceID());
+            }
+        }
 
         /// <summary>
         /// Unregisters a mesh from the Entities Graphics System.
         /// </summary>
-        /// <param name="mesh">A mesh ID received from <see cref="RegisterMesh"/>.</param>
-        public void UnregisterMesh(BatchMeshID mesh) => m_BatchRendererGroup.UnregisterMesh(mesh);
+        /// <param name="meshID">A mesh ID received from <see cref="RegisterMesh"/>.</param>
+        public void UnregisterMesh(BatchMeshID meshID)
+        {
+            Mesh mesh = m_BatchRendererGroup.GetRegisteredMesh(meshID);
+            if (mesh)
+            {
+                m_BatchRendererGroup.UnregisterMesh(meshID);
+                // Check if this was the last reference to this mesh in BRG, in which case we can
+                // remove it from the list of referenced assets.
+                if (!m_BatchRendererGroup.GetRegisteredMesh(meshID))
+                    m_RegisteredAssets.Remove(mesh.GetInstanceID());
+            }
+        }
 
         /// <summary>
         /// Returns the <see cref="Mesh"/> that corresponds to the given registered mesh ID, or <c>null</c> if no such mesh exists.

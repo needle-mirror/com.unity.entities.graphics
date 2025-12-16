@@ -4,6 +4,21 @@ uid: changelog
 
 # Changelog
 
+## [1.4.17] - 2025-12-16
+
+### Added
+
+
+### Changed
+
+* Updated the `com.unity.entities` dependency to version `1.4.4`
+
+### Fixed
+
+* EntitiesGraphicsSystem holds references to Materials and Meshes so they do not get destroyed, if not unregistered, when Resources.UnloadUnusedAssets is called and they are no more referenced outside of EntitiesGraphicsSystem.
+
+
+
 ## [1.4.16] - 2025-10-17
 
 ### Changed
@@ -13,7 +28,6 @@ uid: changelog
 ### Fixed
 
 * Added proper handling for disabling the PresentationSystemGroup
-
 
 
 ## [1.4.15] - 2025-09-05
