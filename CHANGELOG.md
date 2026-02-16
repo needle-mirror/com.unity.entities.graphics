@@ -4,10 +4,15 @@ uid: changelog
 
 # Changelog
 
+## [1.4.18] - 2026-02-16
+
+
+### Changed
+
+* Updated the `com.unity.entities` dependency to version `1.4.5`
+
+
 ## [1.4.17] - 2025-12-16
-
-### Added
-
 
 ### Changed
 
@@ -16,7 +21,6 @@ uid: changelog
 ### Fixed
 
 * EntitiesGraphicsSystem holds references to Materials and Meshes so they do not get destroyed, if not unregistered, when Resources.UnloadUnusedAssets is called and they are no more referenced outside of EntitiesGraphicsSystem.
-
 
 
 ## [1.4.16] - 2025-10-17
