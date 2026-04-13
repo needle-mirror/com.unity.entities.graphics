@@ -4,8 +4,15 @@ uid: changelog
 
 # Changelog
 
-## [1.4.18] - 2026-02-16
+## [1.4.19] - 2026-04-13
 
+
+### Changed
+
+* Updated the `com.unity.entities` dependency to version `1.4.6`
+
+
+## [1.4.18] - 2026-02-16
 
 ### Changed
 
