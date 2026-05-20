@@ -1,0 +1,36 @@
+{
+    "name": "Unity.Entities.Graphics.PerformanceTests",
+    "rootNamespace": "",
+    "references": [
+        "Unity.PerformanceTesting",
+        "Unity.Rendering",
+        "Unity.Entities.Graphics",
+        "Unity.Entities.Graphics.Tests",
+        "Unity.Entities",
+        "Unity.Entities.Hybrid",
+        "Unity.Collections",
+        "Unity.Mathematics",
+        "Unity.Transforms",
+        "Unity.Scenes",
+        "Unity.Scenes.Editor",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "UnityEditor.UI",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

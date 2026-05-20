@@ -4,13 +4,21 @@ uid: changelog
 
 # Changelog
 
+## [1.4.20] - 2026-05-20
+
+
+### Fixed
+
+* Fixed an issue where materials and/or meshes would be assigned to the wrong object during live baking.
+* Fixed an issue where changing render mesh properties during incremental baking would cause incorrect mesh/material assignment.
+* Fixed an issue where baking lightmap-affected renderers would cause the baked artefact hash to be different between editor sessions.
+* Materials and Meshes are now sorted by their GUIDs instead of EntityId, making their position in the RenderMeshArray stable across editor loads.
+
+
 ## [1.4.19] - 2026-04-13
 
-
 ### Changed
-
-* Updated the `com.unity.entities` dependency to version `1.4.6`
-
+* Updated the com.unity.entities dependency to version 1.4.6
 
 ## [1.4.18] - 2026-02-16
 

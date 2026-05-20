@@ -886,7 +886,7 @@ namespace Unity.Rendering
         private void ValidateUsingURPForwardPlus()
         {
             // If using URP, display and warning indicating that Forward+ is the preferred rendering mode
-            RenderPipelineAsset pipelineAsset = GraphicsSettings.renderPipelineAsset;
+            RenderPipelineAsset pipelineAsset = GraphicsSettings.defaultRenderPipeline;
             if (pipelineAsset is UniversalRenderPipelineAsset)
             {
                 UniversalRenderPipelineAsset settings = pipelineAsset as UniversalRenderPipelineAsset;
