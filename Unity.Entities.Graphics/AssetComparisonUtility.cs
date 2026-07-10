@@ -136,6 +136,7 @@ namespace Unity.Rendering
             };
         }
 #endif
+
         /// <summary>
         /// Compares two UnityObjectRef instances using stable GUID-based identifiers.
         /// </summary>

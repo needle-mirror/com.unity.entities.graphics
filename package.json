@@ -1,12 +1,12 @@
 {
   "name": "com.unity.entities.graphics",
   "displayName": "Entities Graphics",
-  "version": "1.4.20",
+  "version": "1.4.21",
   "unity": "2022.3",
   "unityRelease": "20f1",
   "description": "The Entities Graphics package provides systems and components for drawing meshes using DOTS, including support for instanced mesh rendering and LOD.",
   "dependencies": {
-    "com.unity.entities": "1.4.7",
+    "com.unity.entities": "1.4.8",
     "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.render-pipelines.core": "14.0.10"
   },
@@ -17,15 +17,15 @@
     "unity"
   ],
   "_upm": {
-    "changelog": "### Fixed\n\n* Fixed an issue where materials and/or meshes would be assigned to the wrong object during live baking.\n* Fixed an issue where changing render mesh properties during incremental baking would cause incorrect mesh/material assignment.\n* Fixed an issue where baking lightmap-affected renderers would cause the baked artefact hash to be different between editor sessions.\n* Materials and Meshes are now sorted by their GUIDs instead of EntityId, making their position in the RenderMeshArray stable across editor loads."
+    "changelog": "### Changed\n* Updated the com.unity.entities dependency to version 1.4.8"
   },
   "upmCi": {
-    "footprint": "c17381fa508815a5b24a33b4ff835c7a2f8a6a46"
+    "footprint": "9b8712235b5a3fe8d27c11fd6db7e0f0c9f10a7b"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.entities.graphics@1.4/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/dots.git",
     "type": "git",
-    "revision": "7f0c5eb268f143c01d07a594452ade84299d8378"
+    "revision": "4a34d600ff4a191ed22ac899ab955d96d7c683f7"
   }
 }
