@@ -4,9 +4,18 @@ uid: changelog
 
 # Changelog
 
+## [1.5.0] - 2026-09-08
+
+
+### Changed
+
+* Updated the com.unity.entities dependency to version 1.5.0
+* Updated the minimum editor version to 6000.0
+
 ## [1.4.21] - 2026-07-10
 
 ### Changed
+
 * Updated the com.unity.entities dependency to version 1.4.8
 
 
@@ -23,8 +32,8 @@ uid: changelog
 ## [1.4.19] - 2026-04-13
 
 ### Changed
-* Updated the com.unity.entities dependency to version 1.4.6
 
+* Updated the com.unity.entities dependency to version 1.4.6
 
 ## [1.4.18] - 2026-02-16
 
